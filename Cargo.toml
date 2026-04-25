@@ -5,10 +5,10 @@ edition = "2024"
 
 [dependencies]
 flume = "0.12.0"
-libc = "0.2.182"
-libloading = "0.9.0"
-libmpv2 = "5.0.3"
-once_cell = "1.21.3"
+libc = "0.2"
+libloading = "0.9"
+libmpv2 = "5.0"
+once_cell = "1.21"
 gtk = { version = "0.11", package = "gtk4", features = ["v4_20"] }
 adw = { version = "0.9", package = "libadwaita", features = ["v1_8"] }
 tracing = "0.1.44"
@@ -22,15 +22,14 @@ gstreamer = "0.25"
 gstreamer-video = "0.25"
 gstreamer-play = "0.25"
 
-tracing-subscriber = "0.3.22"
+tracing-subscriber = "0.3"
 glow = "0.17"
 thiserror = "2.0.18"
 tsutils = { path = "../tsutils" }
 libmpv2-sys = "4.0.1"
 
-[dev-dependencies]
-shaderc = { version = "0.8" }
-
+[build-dependencies]
+glib-build-tools = "0.22"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gdk-x11 = { version = "0.11", package = "gdk4-x11", features = [

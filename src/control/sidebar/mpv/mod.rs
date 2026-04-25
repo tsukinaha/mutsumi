@@ -21,7 +21,7 @@ mod imp {
     use crate::ui::mpv::mpvglarea::MPVGLArea;
 
     #[derive(Debug, Default, CompositeTemplate, glib::Properties)]
-    #[template(resource = "/com/github/mutsumi/ui/mpv_control_sidebar.ui")]
+    #[template(resource = "/io/github/mutsumi/ui/mpv_control_sidebar.ui")]
     #[properties(wrapper_type = super::MPVControlSidebar)]
     pub struct MPVControlSidebar {
         #[property(get, set = Self::set_player, explicit_notify, nullable)]

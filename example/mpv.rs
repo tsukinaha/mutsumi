@@ -9,7 +9,7 @@ fn main() {
     let area_clone = area.clone();
 
     glib::spawn_future_local(async move {
-        glib::timeout_future(std::time::Duration::from_secs(1)).await;
+        glib::timeout_future(std::time::Duration::from_secs(5)).await;
         area_clone.play("https://www.youtube.com/watch?v=IalBrXP3LVU&list=RDIalBrXP3LVU", 0.0);
     });
 

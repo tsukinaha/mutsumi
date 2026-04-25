@@ -1,0 +1,67 @@
+using Gtk 4.0;
+
+menu video-menu {
+  section {
+    item {
+      custom: "menu-actions";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Next");
+      action: "video.next-video";
+      accel: "N";
+    }
+
+    item {
+      label: _("_Previous");
+      action: "video.previous-video";
+      accel: "P";
+    }
+  }
+
+  section {
+    item {
+      label: _("Next chapter");
+      action: "video.chapter-next";
+      accel: "<Control>N";
+    }
+
+    item {
+      label: _("Previous chapter");
+      action: "video.chapter-prev";
+      accel: "<Control>P";
+    }
+  }
+
+  section {
+    item {
+      label: _("Playlist");
+      action: "video.show-playlist";
+      accel: "L";
+    }
+
+    item {
+      label: _("Advanced settings");
+      action: "video.show-settings";
+      accel: "A";
+    }
+  }
+
+  section {
+    item {
+      label: _("Media info");
+      action: "video.show-info";
+      accel: "I";
+    }
+  }
+
+  section {
+    item {
+      label: _("_Keyboard shortcuts");
+      action: "win.show-help-overlay";
+      accel: "F1";
+    }
+  }
+}
