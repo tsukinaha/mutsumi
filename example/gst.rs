@@ -1,0 +1,89 @@
+use std::rc::Rc;
+use std::time::Duration;
+
+use gtk::glib;
+use gtk::prelude::*;
+use gtk::{
+    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation,
+};
+use mutsumi::video::GstVideo;
+
+fn main() {
+    gtk::init().expect("Failed to initialize GTK");
+
+    let app = Application::builder()
+        .application_id("org.mutsumi.example.gstvideo")
+        .build();
+
+    app.connect_activate(|app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("mutsumi GstVideo example")
+            .default_width(960)
+            .default_height(540)
+            .build();
+
+        let video = GstVideo::new().expect("Failed to initialize GstVideo");
+
+        let vbox = GtkBox::new(Orientation::Vertical, 6);
+
+        video.set_hexpand(true);
+        video.set_vexpand(true);
+        vbox.append(&video);
+
+        let controls = GtkBox::new(Orientation::Horizontal, 6);
+
+        let entry = Entry::new();
+        entry.set_hexpand(true);
+        entry.set_placeholder_text(Some("file:///path/to/video.mp4 or https://..."));
+        controls.append(&entry);
+
+        let play_btn = Button::with_label("Play");
+        let pause_btn = Button::with_label("Toggle Pause");
+        let stop_btn = Button::with_label("Stop");
+
+        controls.append(&play_btn);
+        controls.append(&pause_btn);
+        controls.append(&stop_btn);
+
+        vbox.append(&controls);
+
+        let video_play = video.clone();
+        let entry_play = entry.clone();
+        play_btn.connect_clicked(move |_| {
+            let url = entry_play.text().to_string();
+            if url.trim().is_empty() {
+                eprintln!("Please enter a URL or file path to play.");
+                return;
+            }
+
+            video_play.play(&url, 0.0);
+            eprintln!("Play requested: {}", url);
+        });
+
+        let video_pause = video.clone();
+        pause_btn.connect_clicked(move |_| {
+            video_pause.command_pause();
+            eprintln!("Toggle pause");
+        });
+
+        let video_stop = video.clone();
+        stop_btn.connect_clicked(move |_| {
+            video_stop.stop();
+            eprintln!("Stop requested");
+        });
+
+        window.set_child(Some(&vbox));
+        window.present();
+
+        let video_autoplay = video.clone();
+        glib::spawn_future_local(async move {
+            glib::timeout_future(Duration::from_secs(1)).await;
+            let demo_url = "https://www.youtube.com/watch?v=IalBrXP3LVU&list=RDIalBrXP3LVU";
+            video_autoplay.play(demo_url, 0.0);
+            eprintln!("Autoplay requested: {}", demo_url);
+        });
+    });
+
+    app.run();
+}
