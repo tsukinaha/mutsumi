@@ -1,7 +1,7 @@
 mod menu;
 
-use menu::*;
 use glib::prelude::*;
+use menu::*;
 
 pub fn init() {
     MenuActions::ensure_type();

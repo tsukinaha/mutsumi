@@ -1,10 +1,11 @@
-mod mpv;
-mod gst;
+mod backend;
 mod conf;
 mod error;
+mod gst;
+mod mpv;
 mod play;
-mod backend;
 
-pub use mpv::*;
-pub use gst::*;
+pub use backend::*;
 pub use error::*;
+pub use gst::*;
+pub use mpv::*;

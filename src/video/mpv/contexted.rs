@@ -1,25 +1,7 @@
-
-
-
 //This struct is actually noting, so it can be safely sent across threads without synchronization.
 #[derive(Clone, Copy)]
 pub struct ContextedMPV {
     pub mpv: MpvActor,
-}
-
-pub enum TrackSelection {
-    Track(i64),
-    None,
-}
-
-impl std::fmt::Display for TrackSelection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let str = match self {
-            TrackSelection::Track(id) => id.to_string(),
-            TrackSelection::None => "no".to_string(),
-        };
-        write!(f, "{str}")
-    }
 }
 
 impl Default for ContextedMPV {
@@ -50,7 +32,10 @@ impl Default for ContextedMPV {
     }
 }
 
-use crate::video::{MpvActor, MpvValue, MpvValueType};
+use crate::{
+    TrackSelection,
+    video::{MpvActor, MpvValue, MpvValueType},
+};
 
 impl ContextedMPV {
     pub fn shutdown(&self) {
@@ -66,10 +51,7 @@ impl ContextedMPV {
     }
 
     pub async fn position(&self) -> f64 {
-        let Ok(MpvValue::F64(pos)) = self
-            .mpv
-            .get_property("time-pos", MpvValueType::F64)
-            .await
+        let Ok(MpvValue::F64(pos)) = self.mpv.get_property("time-pos", MpvValueType::F64).await
         else {
             return 0.0;
         };
@@ -77,16 +59,41 @@ impl ContextedMPV {
         pos
     }
 
+    pub async fn duration(&self) -> f64 {
+        let Ok(MpvValue::F64(duration)) =
+            self.mpv.get_property("duration", MpvValueType::F64).await
+        else {
+            return 0.0;
+        };
+
+        duration
+    }
+
     pub async fn paused(&self) -> bool {
-        let Ok(MpvValue::Bool(paused)) = self
-            .mpv
-            .get_property("pause", MpvValueType::Bool)
-            .await
+        let Ok(MpvValue::Bool(paused)) = self.mpv.get_property("pause", MpvValueType::Bool).await
         else {
             return false;
         };
 
         paused
+    }
+
+    pub async fn volume(&self) -> i64 {
+        let Ok(MpvValue::I64(volume)) = self.mpv.get_property("volume", MpvValueType::I64).await
+        else {
+            return 0;
+        };
+
+        volume
+    }
+
+    pub async fn speed(&self) -> f64 {
+        let Ok(MpvValue::F64(speed)) = self.mpv.get_property("speed", MpvValueType::F64).await
+        else {
+            return 1.0;
+        };
+
+        speed
     }
 
     pub fn pause(&self, pause: bool) {
@@ -168,7 +175,8 @@ impl ContextedMPV {
     }
 
     pub async fn get_track_id(&self, type_: &str) -> i64 {
-        let Ok(MpvValue::String(track)) = self.mpv.get_property(type_, MpvValueType::String).await else {
+        let Ok(MpvValue::String(track)) = self.mpv.get_property(type_, MpvValueType::String).await
+        else {
             return 0;
         };
 

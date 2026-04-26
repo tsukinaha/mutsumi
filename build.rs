@@ -8,12 +8,14 @@ use std::process::Command;
 const APP_RESOURCE_PREFIX: &str = "/io/github/mutsumi";
 
 fn main() {
-    let project_root = PathBuf::from(
-        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set"),
-    );
+    let project_root =
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set"));
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed={}", project_root.join("src").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        project_root.join("src").display()
+    );
     println!(
         "cargo:rerun-if-changed={}",
         project_root.join("resources/icons").display()
@@ -207,12 +209,9 @@ fn write_icon_gresources(xml: &mut String, resources_root: &Path, icon_inputs: &
     for icon in icon_inputs {
         println!("cargo:rerun-if-changed={}", icon.display());
 
-        let rel_to_resources = icon.strip_prefix(resources_root).unwrap_or_else(|_| {
-            panic!(
-                "Icon path is not under resources/: {}",
-                icon.display()
-            )
-        });
+        let rel_to_resources = icon
+            .strip_prefix(resources_root)
+            .unwrap_or_else(|_| panic!("Icon path is not under resources/: {}", icon.display()));
 
         let parent = rel_to_resources.parent().unwrap_or_else(|| {
             panic!(
@@ -233,16 +232,15 @@ fn write_icon_gresources(xml: &mut String, resources_root: &Path, icon_inputs: &
 
         for icon in files {
             let rel_to_resources = icon.strip_prefix(resources_root).unwrap_or_else(|_| {
-                panic!(
-                    "Icon path is not under resources/: {}",
-                    icon.display()
-                )
+                panic!("Icon path is not under resources/: {}", icon.display())
             });
 
             let alias = rel_to_resources
                 .file_name()
                 .and_then(OsStr::to_str)
-                .unwrap_or_else(|| panic!("Invalid icon file name: {}", rel_to_resources.display()));
+                .unwrap_or_else(|| {
+                    panic!("Invalid icon file name: {}", rel_to_resources.display())
+                });
 
             let rel_text = to_unix_path(rel_to_resources);
 

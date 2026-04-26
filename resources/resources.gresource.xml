@@ -37,7 +37,8 @@
   <gresource prefix="/io/github/mutsumi/ui/">
     <file compressed="true" preprocess="xml-stripblanks">ui/menu.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/menu_actions.ui</file>
-    <file compressed="true" preprocess="xml-stripblanks">ui/mpv_control_sidebar.ui</file>
     <file compressed="true" preprocess="xml-stripblanks">ui/player.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/mpv_control_sidebar.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks">ui/volume_bar.ui</file>
   </gresource>
 </gresources>

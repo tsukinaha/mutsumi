@@ -633,11 +633,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                         </child>
                       </object>
                     </child>
-                    <child>
-                      <object class="AdwPreferencesGroup">
-                        <property name="description" translatable="yes">API from DanDanPlay</property>
-                      </object>
-                    </child>
                     <style>
                       <class name="osd"/>
                       <class name="logo"/>

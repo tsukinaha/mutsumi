@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
-use gtk::{
-    Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation,
-};
+use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation};
 use mutsumi::video::GstVideo;
 
 fn main() {

@@ -1,5 +1,8 @@
 use glib::prelude::*;
-use std::{error::Error, fmt::{Display, Formatter, Result}};
+use std::{
+    error::Error,
+    fmt::{Display, Formatter, Result},
+};
 
 macro_rules! mpv_error {
     ($( $name:ident = $code:expr ),* $(,)? ) => {
@@ -57,7 +60,4 @@ unsafe impl<'a> glib::value::FromValue<'a> for MutsumiMpvError {
     }
 }
 
-mpv_error!(
-    AreaNotInitialized = -100,
-    ContextNotInitialized = -101,
-);
+mpv_error!(AreaNotInitialized = -100, ContextNotInitialized = -101,);

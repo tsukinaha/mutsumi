@@ -2,8 +2,10 @@ use glib::Object;
 use gtk::{gio, glib, subclass::prelude::*};
 use tracing::info;
 
-
-use crate::video::mpv::contexted::{ContextedMPV, TrackSelection};
+use crate::video::{
+    backend::{TrackKind, TrackSelection, VideoBackend},
+    mpv::contexted::ContextedMPV,
+};
 
 use super::RENDER_UPDATE;
 
@@ -166,9 +168,11 @@ mod imp {
                 self,
                 async move {
                     let handle = ctx_rx.recv_async().await.expect("Actor dropped sender");
-                    let mut ctx =
-                        RenderContext::new(unsafe { handle.0.as_mut().expect("mpv_handle is pointed to null???") }, render_params)
-                            .expect("Failed creating render context");
+                    let mut ctx = RenderContext::new(
+                        unsafe { handle.0.as_mut().expect("mpv_handle is pointed to null???") },
+                        render_params,
+                    )
+                    .expect("Failed creating render context");
                     ctx.set_update_callback(|| {
                         let _ = RENDER_UPDATE.tx.send(true);
                     });
@@ -302,5 +306,265 @@ impl MPVGLArea {
 
     pub fn set_slang(&self, value: String) {
         self.mpv().set_slang(value)
+    }
+}
+
+impl VideoBackend for MPVGLArea {
+    fn play(&self, url: &str, percentage: f64) {
+        MPVGLArea::play(self, url, percentage);
+    }
+
+    fn shutdown(&self) {
+        self.mpv().shutdown();
+    }
+
+    fn stop(&self) {
+        self.mpv().stop();
+    }
+
+    fn load_video(&self, url: &str) {
+        self.mpv().load_video(url);
+    }
+
+    fn add_sub(&self, url: &str) {
+        MPVGLArea::add_sub(self, url);
+    }
+
+    fn pause(&self, pause: bool) {
+        self.mpv().pause(pause);
+    }
+
+    fn command_pause(&self) {
+        self.mpv().command_pause();
+    }
+
+    fn set_position(&self, value: f64) {
+        MPVGLArea::set_position(self, value);
+    }
+
+    fn set_percent_position(&self, value: f64) {
+        self.mpv().set_percent_position(value);
+    }
+
+    fn set_start(&self, percentage: f64) {
+        self.mpv().set_start(percentage);
+    }
+
+    fn set_volume(&self, value: i64) {
+        MPVGLArea::set_volume(self, value);
+    }
+
+    fn volume_scroll(&self, value: i64) {
+        MPVGLArea::volume_scroll(self, value);
+    }
+
+    fn set_speed(&self, value: f64) {
+        MPVGLArea::set_speed(self, value);
+    }
+
+    fn seek_forward(&self, value: i64) {
+        MPVGLArea::seek_forward(self, value);
+    }
+
+    fn seek_backward(&self, value: i64) {
+        MPVGLArea::seek_backward(self, value);
+    }
+
+    fn set_aid(&self, value: TrackSelection) {
+        self.mpv().set_aid(value);
+    }
+
+    fn set_sid(&self, value: TrackSelection) {
+        self.mpv().set_sid(value);
+    }
+
+    fn disable_aid(&self) {
+        self.mpv().set_aid(TrackSelection::None);
+    }
+
+    fn disable_sid(&self) {
+        self.mpv().set_sid(TrackSelection::None);
+    }
+
+    fn set_slang(&self, value: String) {
+        self.mpv().set_slang(value);
+    }
+
+    fn set_brightness(&self, value: f64) {
+        self.mpv().mpv.set_property("brightness", value);
+    }
+
+    fn set_contrast(&self, value: f64) {
+        self.mpv().mpv.set_property("contrast", value);
+    }
+
+    fn set_gamma(&self, value: f64) {
+        self.mpv().mpv.set_property("gamma", value);
+    }
+
+    fn set_hue(&self, value: f64) {
+        self.mpv().mpv.set_property("hue", value);
+    }
+
+    fn set_saturation(&self, value: f64) {
+        self.mpv().mpv.set_property("saturation", value);
+    }
+
+    fn set_sub_pos(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-pos", value);
+    }
+
+    fn set_sub_font_size(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-font-size", value);
+    }
+
+    fn set_sub_scale(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-scale", value);
+    }
+
+    fn set_sub_speed(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-speed", value);
+    }
+
+    fn set_sub_delay(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-delay", value);
+    }
+
+    fn set_sub_bold(&self, value: bool) {
+        self.mpv().mpv.set_property("sub-bold", value);
+    }
+
+    fn set_sub_italic(&self, value: bool) {
+        self.mpv().mpv.set_property("sub-italic", value);
+    }
+
+    fn set_sub_font(&self, value: &str) {
+        self.mpv().mpv.set_property("sub-font", value.to_owned());
+    }
+
+    fn set_sub_color(&self, value: &str) {
+        self.mpv().mpv.set_property("sub-color", value.to_owned());
+    }
+
+    fn set_sub_border_color(&self, value: &str) {
+        self.mpv()
+            .mpv
+            .set_property("sub-border-color", value.to_owned());
+    }
+
+    fn set_sub_back_color(&self, value: &str) {
+        self.mpv()
+            .mpv
+            .set_property("sub-back-color", value.to_owned());
+    }
+
+    fn set_sub_border_style(&self, value: &str) {
+        self.mpv()
+            .mpv
+            .set_property("sub-border-style", value.to_owned());
+    }
+
+    fn set_sub_border_size(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-border-size", value);
+    }
+
+    fn set_sub_shadow_offset(&self, value: f64) {
+        self.mpv().mpv.set_property("sub-shadow-offset", value);
+    }
+
+    fn set_audio_delay(&self, value: f64) {
+        self.mpv().mpv.set_property("audio-delay", value);
+    }
+
+    fn set_audio_channels(&self, value: &str) {
+        self.mpv()
+            .mpv
+            .set_property("audio-channels", value.to_owned());
+    }
+
+    fn set_audio_pan(&self, value: &str) {
+        self.mpv().mpv.set_property("af", value.to_owned());
+    }
+
+    fn clear_audio_pan(&self) {
+        self.mpv().mpv.set_property("af", String::new());
+    }
+
+    fn set_scale(&self, value: &str) {
+        self.mpv().mpv.set_property("scale", value.to_owned());
+    }
+
+    fn set_deband(&self, value: bool) {
+        self.mpv().mpv.set_property("deband", value);
+    }
+
+    fn set_deband_iterations(&self, value: i64) {
+        self.mpv().mpv.set_property("deband-iterations", value);
+    }
+
+    fn set_deband_threshold(&self, value: i64) {
+        self.mpv().mpv.set_property("deband-threshold", value);
+    }
+
+    fn set_deband_range(&self, value: i64) {
+        self.mpv().mpv.set_property("deband-range", value);
+    }
+
+    fn set_deband_grain(&self, value: i64) {
+        self.mpv().mpv.set_property("deband-grain", value);
+    }
+
+    fn set_deinterlace(&self, value: bool) {
+        self.mpv().mpv.set_property("deinterlace", value);
+    }
+
+    fn set_hwdec(&self, value: &str) {
+        self.mpv().mpv.set_property("hwdec", value.to_owned());
+    }
+
+    fn set_panscan(&self, value: f64) {
+        self.mpv().mpv.set_property("panscan", value);
+    }
+
+    fn set_stretch_image_subs_to_screen(&self, value: bool) {
+        self.mpv()
+            .mpv
+            .set_property("stretch-image-subs-to-screen", value);
+    }
+
+    fn set_demuxer_max_bytes(&self, value: &str) {
+        self.mpv()
+            .mpv
+            .set_property("demuxer-max-bytes", value.to_owned());
+    }
+
+    fn set_cache_secs(&self, value: f64) {
+        self.mpv().mpv.set_property("cache-secs", value);
+    }
+
+    fn display_stats_toggle(&self) {
+        self.mpv().display_stats_toggle();
+    }
+
+    async fn position(&self) -> f64 {
+        MPVGLArea::position(self).await
+    }
+
+    async fn paused(&self) -> bool {
+        MPVGLArea::paused(self).await
+    }
+
+    async fn get_track_id(&self, kind: TrackKind) -> i64 {
+        let type_ = match kind {
+            TrackKind::Video => "vid",
+            TrackKind::Audio => "aid",
+            TrackKind::Subtitle => "sid",
+        };
+
+        MPVGLArea::get_track_id(self, type_).await
+    }
+
+    async fn duration(&self) -> f64 {
+        self.mpv().duration().await
     }
 }

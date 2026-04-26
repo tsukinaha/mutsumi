@@ -1,6 +1,6 @@
-use mutsumi::video::MPVGLArea;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Box as GtkBox, Entry, Button, Orientation, Label};
+use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation};
+use mutsumi::video::MPVGLArea;
 
 fn main() {
     gtk::init().expect("Failed to initialize GTK");
@@ -10,7 +10,7 @@ fn main() {
 
     glib::spawn_future_local(async move {
         glib::timeout_future(std::time::Duration::from_secs(5)).await;
-        area_clone.play("https://www.youtube.com/watch?v=IalBrXP3LVU&list=RDIalBrXP3LVU", 0.0);
+        area_clone.play("https://www.youtube.com/watch?v=IalBrXP3LVU", 0.0);
     });
 
     let app = Application::builder()

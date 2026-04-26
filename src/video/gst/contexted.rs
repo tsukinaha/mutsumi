@@ -1,21 +1,14 @@
-use std::{
-    cell::Cell,
-    rc::Rc
-};
+use std::{cell::Cell, rc::Rc};
 
+use gst::prelude::*;
 use gstreamer as gst;
 use gstreamer::bus::BusWatchGuard;
-use gst::prelude::*;
 use gtk::{gio, prelude::FileExt};
 use tracing::info;
 
-use super::{GST_EVENT_CHANNEL, ListenEvent};
+use crate::TrackSelection;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrackSelection {
-    Track(i32),
-    None,
-}
+use super::{GST_EVENT_CHANNEL, ListenEvent};
 
 struct Inner {
     playbin: gst::Element,
@@ -107,7 +100,9 @@ impl ContextedGstPlayer {
     }
 
     pub fn add_sub(&self, url: &str) {
-        self.inner.playbin.set_property("suburi", normalize_uri(url));
+        self.inner
+            .playbin
+            .set_property("suburi", normalize_uri(url));
         let _ = GST_EVENT_CHANNEL
             .tx
             .send(ListenEvent::SubtitleAdded(url.to_owned()));

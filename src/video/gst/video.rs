@@ -1,18 +1,10 @@
-use std::{
-    cell::RefCell,
-    sync::OnceLock,
-};
+use std::{cell::RefCell, sync::OnceLock};
 
 use gstreamer as gst;
-use gtk::{
-    gdk, glib,
-    prelude::*,
-    subclass::prelude::*,
-};
+use gtk::{gdk, glib, prelude::*, subclass::prelude::*};
 
-use super::contexted::{ContextedGstPlayer, TrackSelection};
-
-static GST_INIT: OnceLock<Result<(), GstVideoError>> = OnceLock::new();
+use super::contexted::ContextedGstPlayer;
+use crate::video::backend::{TrackKind, TrackSelection, VideoBackend};
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum GstVideoError {
@@ -20,12 +12,6 @@ pub enum GstVideoError {
     InitFailed,
     #[error("failed to create gtk4paintablesink")]
     MissingPaintableSink,
-}
-
-fn ensure_gst_initialized() -> Result<(), GstVideoError> {
-    GST_INIT
-        .get_or_init(|| gst::init().map_err(|_| GstVideoError::InitFailed))
-        .clone()
 }
 
 mod imp {
@@ -40,7 +26,7 @@ mod imp {
 
     impl Default for GstVideo {
         fn default() -> Self {
-            ensure_gst_initialized().expect("failed to initialize GStreamer");
+            gst::init().expect("failed to initialize GStreamer");
 
             let sink = gst::ElementFactory::make("gtk4paintablesink")
                 .build()
@@ -124,7 +110,7 @@ glib::wrapper! {
 
 impl GstVideo {
     pub fn new() -> Result<Self, GstVideoError> {
-        ensure_gst_initialized()?;
+        gst::init().map_err(|_| GstVideoError::InitFailed)?;
 
         let _ = gst::ElementFactory::make("gtk4paintablesink")
             .build()
@@ -259,5 +245,104 @@ impl GstVideo {
 impl Default for GstVideo {
     fn default() -> Self {
         Self::new().expect("failed to initialize GstVideo")
+    }
+}
+
+impl VideoBackend for GstVideo {
+    fn play(&self, url: &str, percentage: f64) {
+        GstVideo::play(self, url, percentage);
+    }
+
+    fn shutdown(&self) {
+        GstVideo::shutdown(self);
+    }
+
+    fn stop(&self) {
+        GstVideo::stop(self);
+    }
+
+    fn load_video(&self, url: &str) {
+        GstVideo::load_video(self, url);
+    }
+
+    fn add_sub(&self, url: &str) {
+        GstVideo::add_sub(self, url);
+    }
+
+    fn pause(&self, pause: bool) {
+        GstVideo::pause(self, pause);
+    }
+
+    fn command_pause(&self) {
+        GstVideo::command_pause(self);
+    }
+
+    fn set_position(&self, value: f64) {
+        GstVideo::set_position(self, value);
+    }
+
+    fn set_percent_position(&self, value: f64) {
+        GstVideo::set_percent_position(self, value);
+    }
+
+    fn set_start(&self, percentage: f64) {
+        GstVideo::set_start(self, percentage);
+    }
+
+    fn set_volume(&self, value: i64) {
+        GstVideo::set_volume(self, value);
+    }
+
+    fn volume_scroll(&self, value: i64) {
+        GstVideo::volume_scroll(self, value);
+    }
+
+    fn set_speed(&self, value: f64) {
+        GstVideo::set_speed(self, value);
+    }
+
+    fn seek_forward(&self, value: i64) {
+        GstVideo::seek_forward(self, value);
+    }
+
+    fn seek_backward(&self, value: i64) {
+        GstVideo::seek_backward(self, value);
+    }
+
+    async fn position(&self) -> f64 {
+        GstVideo::position(self).await
+    }
+
+    async fn duration(&self) -> f64 {
+        GstVideo::duration(self).await
+    }
+
+    async fn paused(&self) -> bool {
+        GstVideo::paused(self).await
+    }
+
+    fn set_aid(&self, value: TrackSelection) {
+        GstVideo::set_aid(self, value);
+    }
+
+    fn set_sid(&self, value: TrackSelection) {
+        GstVideo::set_sid(self, value);
+    }
+
+    fn set_keep_aspect_ratio(&self, keep: bool) {
+        GstVideo::set_keep_aspect_ratio(self, keep);
+    }
+
+    fn set_slang(&self, _value: String) {
+        // Gstreamer does not support this
+    }
+
+    async fn get_track_id(&self, _kind: TrackKind) -> i64 {
+        // Gstreamer does not support this
+        0
+    }
+
+    fn display_stats_toggle(&self) {
+        // Gstreamer does not support this
     }
 }
