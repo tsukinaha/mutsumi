@@ -1,25 +1,14 @@
-use gtk::{
-    glib,
-    prelude::*,
-    subclass::prelude::*,
-};
-
-use super::tsukimi_mpv::ChapterList;
+use crate::{ChapterList, MutsumiVideoPlayer, VideoBackend};
+use gtk::{glib, prelude::*, subclass::prelude::*};
 
 mod imp {
-    use gtk::{
-        glib,
-        prelude::*,
-        subclass::prelude::*,
-    };
-
-    use crate::ui::mpv::mpvglarea::MPVGLArea;
+    use super::*;
 
     #[derive(Default, glib::Properties)]
     #[properties(wrapper_type = super::VideoScale)]
     pub struct VideoScale {
         #[property(get, set = Self::set_player, explicit_notify, nullable)]
-        pub player: glib::WeakRef<MPVGLArea>,
+        pub player: glib::WeakRef<MutsumiVideoPlayer>,
     }
 
     #[glib::object_subclass]
@@ -59,12 +48,13 @@ mod imp {
             ));
         }
     }
+
     impl WidgetImpl for VideoScale {}
     impl RangeImpl for VideoScale {}
     impl ScaleImpl for VideoScale {}
 
     impl VideoScale {
-        fn set_player(&self, player: Option<MPVGLArea>) {
+        fn set_player(&self, player: Option<MutsumiVideoPlayer>) {
             if self.player.upgrade() == player {
                 return;
             }
@@ -77,14 +67,18 @@ mod imp {
         }
 
         fn on_seek_finished(&self, value: f64) {
-            self.player.upgrade().unwrap().set_position(value);
+            let Some(player) = self.player.upgrade() else {
+                return;
+            };
+
+            player.set_position(value);
         }
     }
 }
 
 glib::wrapper! {
     pub struct VideoScale(ObjectSubclass<imp::VideoScale>)
-        @extends gtk::Widget, gtk::Scale, gtk::Range;
+    @extends gtk::Widget, gtk::Scale, gtk::Range, @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
 }
 
 impl Default for VideoScale {

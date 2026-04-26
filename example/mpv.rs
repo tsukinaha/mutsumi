@@ -1,23 +1,24 @@
+use gtk::glib;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation};
-use mutsumi::video::MPVGLArea;
+use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Orientation};
+use mutsumi::video::{MutsumiVideoPlayer, VideoBackend};
 
 fn main() {
     gtk::init().expect("Failed to initialize GTK");
 
-    let area = MPVGLArea::new();
-    let area_clone = area.clone();
+    let player = MutsumiVideoPlayer::new("mpvgl").expect("Failed to initialize mpvgl backend");
+    let player_clone = player.clone();
 
     glib::spawn_future_local(async move {
         glib::timeout_future(std::time::Duration::from_secs(5)).await;
-        area_clone.play("https://www.youtube.com/watch?v=IalBrXP3LVU", 0.0);
+        player_clone.play("https://www.youtube.com/watch?v=IalBrXP3LVU", 0.0);
     });
 
     let app = Application::builder()
         .application_id("org.mutsumi.example.mpvglarea")
         .build();
 
-    let area_for_activate = area.clone();
+    let player_for_activate = player.clone();
 
     app.connect_activate(move |app| {
         let window = ApplicationWindow::builder()
@@ -29,10 +30,10 @@ fn main() {
 
         let vbox = GtkBox::new(Orientation::Vertical, 6);
 
-        let gl_area = area_for_activate.clone();
-        gl_area.set_hexpand(true);
-        gl_area.set_vexpand(true);
-        vbox.append(&gl_area);
+        let video = player_for_activate.clone();
+        video.set_hexpand(true);
+        video.set_vexpand(true);
+        vbox.append(&video);
 
         let controls = GtkBox::new(Orientation::Horizontal, 6);
 
@@ -50,7 +51,7 @@ fn main() {
 
         vbox.append(&controls);
 
-        let gl_area_play = gl_area.clone();
+        let video_play = video.clone();
         let entry_play = entry.clone();
         play_btn.connect_clicked(move |_| {
             let url = entry_play.text().to_string();
@@ -58,19 +59,19 @@ fn main() {
                 eprintln!("Please enter a URL or file path to play.");
                 return;
             }
-            gl_area_play.play(&url, 0.0);
+            video_play.play(&url, 0.0);
             eprintln!("Play requested: {}", url);
         });
 
-        let gl_area_pause = gl_area.clone();
+        let video_pause = video.clone();
         pause_btn.connect_clicked(move |_| {
-            gl_area_pause.pause();
+            video_pause.command_pause();
             eprintln!("Toggle pause");
         });
 
-        let gl_area_stop = gl_area.clone();
+        let video_stop = video.clone();
         stop_btn.connect_clicked(move |_| {
-            gl_area_stop.mpv().stop();
+            video_stop.stop();
             eprintln!("Stop requested");
         });
 

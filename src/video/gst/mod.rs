@@ -41,7 +41,7 @@ pub struct ChapterInfo {
     pub end_seconds: Option<f64>,
 }
 
-pub type ChapterList = Vec<ChapterInfo>;
+type ChapterList = Vec<ChapterInfo>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ListenEvent {

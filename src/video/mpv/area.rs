@@ -3,7 +3,7 @@ use gtk::{gio, glib, subclass::prelude::*};
 use tracing::info;
 
 use crate::video::{
-    backend::{TrackKind, TrackSelection, VideoBackend},
+    backend::{BoxedFuture, TrackKind, TrackSelection, VideoBackend},
     mpv::contexted::ContextedMPV,
 };
 
@@ -51,6 +51,9 @@ mod imp {
     impl ObjectImpl for MPVGLArea {
         fn constructed(&self) {
             self.parent_constructed();
+
+            self.obj().set_hexpand(true);
+            self.obj().set_vexpand(true);
         }
 
         fn dispose(&self) {
@@ -310,6 +313,10 @@ impl MPVGLArea {
 }
 
 impl VideoBackend for MPVGLArea {
+    fn name() -> &'static str {
+        "MPVGLArea"
+    }
+
     fn play(&self, url: &str, percentage: f64) {
         MPVGLArea::play(self, url, percentage);
     }
@@ -546,25 +553,21 @@ impl VideoBackend for MPVGLArea {
         self.mpv().display_stats_toggle();
     }
 
-    async fn position(&self) -> f64 {
-        MPVGLArea::position(self).await
+    fn position(&self) -> BoxedFuture<'_, f64> {
+        Box::pin(async move { MPVGLArea::position(self).await })
     }
 
-    async fn paused(&self) -> bool {
-        MPVGLArea::paused(self).await
+    fn paused(&self) -> BoxedFuture<'_, bool> {
+        Box::pin(async move { MPVGLArea::paused(self).await })
     }
 
-    async fn get_track_id(&self, kind: TrackKind) -> i64 {
+    fn get_track_id(&self, kind: TrackKind) -> BoxedFuture<'_, i64> {
         let type_ = match kind {
             TrackKind::Video => "vid",
             TrackKind::Audio => "aid",
             TrackKind::Subtitle => "sid",
         };
 
-        MPVGLArea::get_track_id(self, type_).await
-    }
-
-    async fn duration(&self) -> f64 {
-        self.mpv().duration().await
+        Box::pin(async move { MPVGLArea::get_track_id(self, type_).await })
     }
 }

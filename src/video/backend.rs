@@ -1,4 +1,8 @@
+use std::{future::Future, pin::Pin};
+
 use gtk::gdk::ModifierType;
+
+pub type BoxedFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TrackSelection {
@@ -24,6 +28,10 @@ impl std::fmt::Display for TrackSelection {
 }
 
 pub trait VideoBackend {
+    fn name() -> &'static str
+    where
+        Self: Sized;
+
     fn play(&self, url: &str, percentage: f64);
     fn shutdown(&self);
     fn stop(&self);
@@ -45,10 +53,12 @@ pub trait VideoBackend {
     fn seek_forward(&self, value: i64);
     fn seek_backward(&self, value: i64);
 
-    async fn position(&self) -> f64;
-    async fn paused(&self) -> bool;
+    fn position(&self) -> BoxedFuture<'_, f64>;
+    fn paused(&self) -> BoxedFuture<'_, bool>;
 
-    async fn duration(&self) -> f64;
+    fn duration(&self) -> BoxedFuture<'_, f64> {
+        Box::pin(async { 0.0 })
+    }
 
     fn seek_relative(&self, value: i64) {
         if value >= 0 {
@@ -74,7 +84,7 @@ pub trait VideoBackend {
 
     fn set_slang(&self, _value: String) {}
 
-    async fn get_track_id(&self, _kind: TrackKind) -> i64;
+    fn get_track_id(&self, _kind: TrackKind) -> BoxedFuture<'_, i64>;
 
     fn press_key(&self, _key: u32, _state: ModifierType) {}
 
@@ -151,4 +161,10 @@ pub trait VideoBackend {
     fn set_demuxer_max_bytes(&self, _value: &str) {}
 
     fn set_cache_secs(&self, _value: f64) {}
+}
+
+impl std::fmt::Display for dyn VideoBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "VideoBackend")
+    }
 }

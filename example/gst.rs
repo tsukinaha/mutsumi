@@ -1,10 +1,9 @@
-use std::rc::Rc;
 use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Label, Orientation};
-use mutsumi::video::GstVideo;
+use gtk::{Application, ApplicationWindow, Box as GtkBox, Button, Entry, Orientation};
+use mutsumi::video::{MutsumiVideoPlayer, VideoBackend};
 
 fn main() {
     gtk::init().expect("Failed to initialize GTK");
@@ -21,7 +20,7 @@ fn main() {
             .default_height(540)
             .build();
 
-        let video = GstVideo::new().expect("Failed to initialize GstVideo");
+        let video = MutsumiVideoPlayer::new("gst").expect("Failed to initialize gst backend");
 
         let vbox = GtkBox::new(Orientation::Vertical, 6);
 

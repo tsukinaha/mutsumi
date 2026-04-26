@@ -7,7 +7,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
 <interface>
   <requires lib="gtk" version="4.0"/>
   <template class="MPVPage" parent="AdwNavigationPage">
-    <property name="title">Tsukimi</property>
+    <property name="title">MutsumiPlayer</property>
     <child>
       <object class="GtkEventControllerMotion">
         <signal name="motion" handler="on_motion" swapped="True"/>

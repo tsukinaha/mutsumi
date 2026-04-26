@@ -4,7 +4,10 @@ use gstreamer as gst;
 use gtk::{gdk, glib, prelude::*, subclass::prelude::*};
 
 use super::contexted::ContextedGstPlayer;
-use crate::video::backend::{TrackKind, TrackSelection, VideoBackend};
+use crate::{
+    BoxedFuture,
+    video::backend::{TrackKind, TrackSelection, VideoBackend},
+};
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum GstVideoError {
@@ -249,6 +252,10 @@ impl Default for GstVideo {
 }
 
 impl VideoBackend for GstVideo {
+    fn name() -> &'static str {
+        "GStreamer"
+    }
+
     fn play(&self, url: &str, percentage: f64) {
         GstVideo::play(self, url, percentage);
     }
@@ -309,16 +316,16 @@ impl VideoBackend for GstVideo {
         GstVideo::seek_backward(self, value);
     }
 
-    async fn position(&self) -> f64 {
-        GstVideo::position(self).await
+    fn position(&self) -> BoxedFuture<'_, f64> {
+        Box::pin(async { GstVideo::position(self).await })
     }
 
-    async fn duration(&self) -> f64 {
-        GstVideo::duration(self).await
+    fn duration(&self) -> BoxedFuture<'_, f64> {
+        Box::pin(async { GstVideo::duration(self).await })
     }
 
-    async fn paused(&self) -> bool {
-        GstVideo::paused(self).await
+    fn paused(&self) -> BoxedFuture<'_, bool> {
+        Box::pin(async { GstVideo::paused(self).await })
     }
 
     fn set_aid(&self, value: TrackSelection) {
@@ -337,9 +344,9 @@ impl VideoBackend for GstVideo {
         // Gstreamer does not support this
     }
 
-    async fn get_track_id(&self, _kind: TrackKind) -> i64 {
+    fn get_track_id(&self, _kind: TrackKind) -> BoxedFuture<'_, i64> {
         // Gstreamer does not support this
-        0
+        Box::pin(async { -1 })
     }
 
     fn display_stats_toggle(&self) {
