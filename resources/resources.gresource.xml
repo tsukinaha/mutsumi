@@ -15,15 +15,20 @@
     <file preprocess="xml-stripblanks" alias="external-link-symbolic.svg">icons/scalable/actions/external-link-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="funnel-outline-symbolic.svg">icons/scalable/actions/funnel-outline-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="jellyfin-symbolic.svg">icons/scalable/actions/jellyfin-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="keyboard-shortcuts-symbolic.svg">icons/scalable/actions/keyboard-shortcuts-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="large-brush-symbolic.svg">icons/scalable/actions/large-brush-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="minus-circle-outline-symbolic.svg">icons/scalable/actions/minus-circle-outline-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="month-symbolic.svg">icons/scalable/actions/month-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="music-note-single-outline-symbolic.svg">icons/scalable/actions/music-note-single-outline-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="playback-options-symbolic.svg">icons/scalable/actions/playback-options-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="seek-backward-large-symbolic.svg">icons/scalable/actions/seek-backward-large-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="seek-forward-large-symbolic.svg">icons/scalable/actions/seek-forward-large-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="settings-symbolic.svg">icons/scalable/actions/settings-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="skip-backwards-30-symbolic.svg">icons/scalable/actions/skip-backwards-30-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="skip-forward-30-symbolic.svg">icons/scalable/actions/skip-forward-30-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="sound-symbolic.svg">icons/scalable/actions/sound-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="speed-svgrepo-com-symbolic.svg">icons/scalable/actions/speed-svgrepo-com-symbolic.svg</file>
+    <file preprocess="xml-stripblanks" alias="speedometer5-symbolic.svg">icons/scalable/actions/speedometer5-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="tag-outline-symbolic.svg">icons/scalable/actions/tag-outline-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="text-bold-symbolic.svg">icons/scalable/actions/text-bold-symbolic.svg</file>
     <file preprocess="xml-stripblanks" alias="text-italic-symbolic.svg">icons/scalable/actions/text-italic-symbolic.svg</file>
@@ -35,10 +40,11 @@
     <file preprocess="xml-stripblanks" alias="video-reel2-symbolic.svg">icons/scalable/actions/video-reel2-symbolic.svg</file>
   </gresource>
   <gresource prefix="/io/github/mutsumi/ui/">
-    <file compressed="true" preprocess="xml-stripblanks">ui/menu.ui</file>
-    <file compressed="true" preprocess="xml-stripblanks">ui/menu_actions.ui</file>
-    <file compressed="true" preprocess="xml-stripblanks">ui/player.ui</file>
-    <file compressed="true" preprocess="xml-stripblanks">ui/mpv_control_sidebar.ui</file>
-    <file compressed="true" preprocess="xml-stripblanks">ui/volume_bar.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="menu.ui">ui/menu.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="menu_actions.ui">ui/menu_actions.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="player.ui">ui/player.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="shortcuts.ui">ui/shortcuts.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="control_sidebar.ui">ui/control_sidebar.ui</file>
+    <file compressed="true" preprocess="xml-stripblanks" alias="volume_bar.ui">ui/volume_bar.ui</file>
   </gresource>
 </gresources>

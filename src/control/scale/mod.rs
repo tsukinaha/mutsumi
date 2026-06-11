@@ -2,6 +2,8 @@ use crate::{ChapterList, MutsumiVideoPlayer};
 use gtk::{glib, prelude::*, subclass::prelude::*};
 
 mod imp {
+    use std::cell::Cell;
+
     use super::*;
 
     #[derive(Default, glib::Properties)]
@@ -9,6 +11,8 @@ mod imp {
     pub struct VideoScale {
         #[property(get, set = Self::set_player, explicit_notify, nullable)]
         pub player: glib::WeakRef<MutsumiVideoPlayer>,
+
+        pub dragging: Cell<bool>,
     }
 
     #[glib::object_subclass]
@@ -39,11 +43,20 @@ mod imp {
                     }
                 });
 
+            gesture.connect_pressed(glib::clone!(
+                #[weak(rename_to = imp)]
+                self,
+                move |_, _, _, _| {
+                    imp.dragging.set(true);
+                }
+            ));
+
             gesture.connect_released(glib::clone!(
                 #[weak(rename_to = imp)]
                 self,
                 move |_, _, _, _| {
-                    imp.on_click_released();
+                    imp.dragging.set(false);
+                    imp.on_seek_finished(imp.obj().value());
                 }
             ));
         }
@@ -59,11 +72,6 @@ mod imp {
                 return;
             }
             self.player.set(player.as_ref());
-        }
-
-        fn on_click_released(&self) {
-            let obj = self.obj();
-            self.on_seek_finished(obj.value());
         }
 
         fn on_seek_finished(&self, value: f64) {
@@ -92,12 +100,8 @@ impl VideoScale {
         glib::Object::builder().build()
     }
 
-    pub fn on_smooth_scale_value_changed(&self) {
-        let value = self.value();
-        let position = value / 60.0;
-        if let Some(player) = self.imp().player.upgrade() {
-            player.set_position(position);
-        }
+    pub fn is_dragging(&self) -> bool {
+        self.imp().dragging.get()
     }
 
     pub fn set_cache_end_time(&self, end_time: i64) {
@@ -107,6 +111,7 @@ impl VideoScale {
     pub fn reset_scale(&self) {
         self.set_value(0.0);
         self.set_fill_level(0.0);
+        self.clear_marks();
     }
 
     pub fn set_chapter_list(&self, chapter_list: ChapterList) {

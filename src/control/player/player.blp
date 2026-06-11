@@ -1,8 +1,8 @@
 using Gtk 4.0;
 using Adw 1;
 
-template $MPVPage: Adw.NavigationPage {
-  title: "MutsumiPlayer";
+template $PlayerPage: Adw.Bin {
+  focusable: true;
 
   EventControllerMotion {
     motion => $on_motion() swapped;
@@ -10,31 +10,38 @@ template $MPVPage: Adw.NavigationPage {
     enter => $on_enter() swapped;
   }
 
-  Adw.ToolbarView {
+  EventControllerKey {
+    key-pressed => $on_key_pressed() swapped;
+    key-released => $on_key_released() swapped;
+  }
+
+  Adw.OverlaySplitView split_view {
+    sidebar-position: end;
+    show-sidebar: false;
+    collapsed: true;
+    max-sidebar-width: 400;
+
+    sidebar: $ControlSidebar control_sidebar {};
+
     content: Overlay {
-      Overlay video_overlay {
-        $MPVGLArea video {
-          hexpand: "true";
-          vexpand: "true";
-        }
+      $MutsumiVideoPlayer video {
+        hexpand: "true";
+        vexpand: "true";
+      }
 
-        GestureClick {
-          button: 1;
-          released => $left_click_cb() swapped;
-        }
+      GestureClick {
+        button: 1;
+        released => $left_click_cb() swapped;
+      }
 
-        GestureClick {
-          button: 3;
-          released => $right_click_cb() swapped;
-        }
+      GestureClick {
+        button: 3;
+        released => $right_click_cb() swapped;
+      }
 
-        EventControllerScroll {
-          flags: vertical;
-          scroll => $video_scroll_cb() swapped;
-        }
-
-        [overlay]
-        $DanmakwArea danmaku_area {}
+      EventControllerScroll {
+        flags: vertical;
+        scroll => $video_scroll_cb() swapped;
       }
 
       [overlay]
@@ -46,6 +53,7 @@ template $MPVPage: Adw.NavigationPage {
 
       [overlay]
       Box loading_box {
+        visible: false;
         valign: center;
         halign: center;
         orientation: vertical;
@@ -85,94 +93,104 @@ template $MPVPage: Adw.NavigationPage {
         valign: start;
         focusable: false;
 
-        Adw.Clamp {
-          margin-top: 10;
-          maximum-size: 2000;
+        Adw.HeaderBar {
+          show-start-title-buttons: false;
+          show-end-title-buttons: false;
 
-          WindowHandle {
-            CenterBox {
-              [start]
-              Box {
-                orientation: horizontal;
-                margin-end: 20;
-                spacing: 10;
+          title-widget: Box {};
 
-                WindowControls {
-                  side: start;
-                  visible: false;
-                }
+          [start]
+          Box {
+            orientation: horizontal;
+            spacing: 10;
+            valign: center;
 
-                Button _back_button {
-                  tooltip-text: _("Stop and quit");
-                  icon-name: "arrow4-left-symbolic";
-                  clicked => $on_stop_clicked() swapped;
+            Box title_box {
+              orientation: vertical;
+              valign: center;
+              spacing: 0;
 
-                  styles [
-                    "flat",
-                  ]
-                }
+              Label title_label {
+                halign: start;
+                ellipsize: middle;
+                label: bind template.video-title;
 
-                Label title_label1 {
-                  halign: center;
-                  ellipsize: middle;
-                }
-
-                Label title_label2 {
-                  halign: center;
-                  ellipsize: middle;
-
-                  styles [
-                    "dimmed",
-                  ]
-                }
+                styles [
+                  "heading",
+                ]
               }
 
-              [end]
-              Box {
-                orientation: horizontal;
+              Label subtitle_label {
+                halign: start;
+                ellipsize: middle;
+                label: bind template.video-subtitle;
 
-                Label network_speed_label_2 {
-                  label: bind network_speed_label.label;
-                  width-request: 130;
-                  margin-end: 10;
-
-                  styles [
-                    "dimmed",
-                  ]
-                }
-
-                Button _playlist_button {
-                  icon-name: "view-dual-symbolic";
-                  focusable: true;
-                  receives-default: true;
-                  tooltip-text: _("Playlist");
-                  clicked => $on_playlist_clicked() swapped;
-
-                  styles [
-                    "flat",
-                  ]
-                }
-
-                Button _media_info_button {
-                  icon-name: "help-about-symbolic";
-                  focusable: true;
-                  receives-default: true;
-                  tooltip-text: _("Media info (MPV)");
-                  clicked => $on_info_clicked() swapped;
-                }
-
-                WindowControls {
-                  side: end;
-                }
+                styles [
+                  "dimmed",
+                  "caption",
+                ]
               }
             }
-
-            styles [
-              "osd",
-              "toolbar",
-              "player-toolbar",
-            ]
           }
+
+          [end]
+          Box {
+            orientation: horizontal;
+            spacing: 6;
+
+            Button network_speed_button {
+              valign: center;
+              visible: bind control_sidebar.show-buffer-speed;
+
+              child: Adw.ButtonContent {
+                icon-name: "speedometer5-symbolic";
+                label: bind network_speed_label.label;
+              };
+
+              styles [
+                "accent",
+              ]
+            }
+
+            Button {
+              valign: center;
+              icon-name: "keyboard-shortcuts-symbolic";
+              tooltip-text: _("Shortcuts");
+              action-name: "player.show-shortcuts";
+
+              styles [
+                "flat",
+                "circular",
+              ]
+            }
+
+            Button _media_info_button {
+              valign: center;
+              icon-name: "help-about-symbolic";
+              focusable: true;
+              receives-default: true;
+              tooltip-text: _("Media info");
+              action-name: "player.show-info";
+
+              styles [
+                "flat",
+                "circular",
+              ]
+            }
+
+            WindowControls {
+              side: end;
+
+              styles [
+                "flat",
+              ]
+            }
+          }
+
+          styles [
+            "flat",
+            "mpv-top-bar",
+          ]
         }
       }
 
@@ -185,45 +203,193 @@ template $MPVPage: Adw.NavigationPage {
         valign: end;
         focusable: false;
 
-        Adw.Clamp {
-          margin-bottom: 10;
-          maximum-size: 2000;
+        Box {
+          orientation: vertical;
+          halign: fill;
+          hexpand: true;
+          spacing: 4;
+
+          CenterBox {
+            [start]
+            Box {
+              orientation: horizontal;
+              spacing: 10;
+
+              Button {
+                tooltip-text: _("Backward");
+                action-name: "player.backward";
+                valign: center;
+
+                Image {
+                  icon-name: "seek-backward-large-symbolic";
+                  pixel-size: 24;
+                  halign: center;
+                  valign: center;
+                }
+
+                styles [
+                  "circular",
+                  "flat",
+                ]
+              }
+
+              Button _play_button {
+                height-request: 48;
+                width-request: 48;
+                focusable: true;
+                receives-default: true;
+                valign: center;
+                tooltip-text: _("Pause");
+                action-name: "player.play-pause";
+
+                Image play_pause_image {
+                  icon-name: "media-playback-pause-symbolic";
+                  pixel-size: 32;
+                  halign: center;
+                  valign: center;
+                }
+
+                styles [
+                  "flat",
+                  "mpv-play-button",
+                  "circular",
+                ]
+              }
+
+              Button {
+                tooltip-text: _("Forward");
+                action-name: "player.forward";
+                valign: center;
+
+                Image {
+                  icon-name: "seek-forward-large-symbolic";
+                  pixel-size: 24;
+                  halign: center;
+                  valign: center;
+                }
+
+                styles [
+                  "circular",
+                  "flat",
+                ]
+              }
+            }
+
+            [end]
+            Box {
+              orientation: horizontal;
+              spacing: 6;
+              valign: center;
+
+              Button playback_speed_indicator {
+                valign: center;
+                margin-end: 6;
+                visible: false;
+                clicked => $playback_speed_indicator_cb() swapped;
+
+                child: Adw.ButtonContent playback_speed_button_content {
+                  icon-name: "playback-options-symbolic";
+                };
+
+                styles [
+                  "accent",
+                  "monospace",
+                ]
+              }
+
+              Box {
+                orientation: horizontal;
+                spacing: 2;
+                valign: center;
+
+                MenuButton audio_tracks_menu_button {
+                  popover: audio_tracks_popover;
+                  icon-name: "audio-x-generic-symbolic";
+                  tooltip-text: _("Audio");
+                  valign: center;
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+
+                MenuButton subtitle_tracks_menu_button {
+                  popover: subtitle_tracks_popover;
+                  icon-name: "media-view-subtitles-symbolic";
+                  tooltip-text: _("Subtitle");
+                  valign: center;
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+
+                MenuButton volume_button {
+                  popover: volume_adj_popover;
+                  icon-name: "audio-volume-high-symbolic";
+                  tooltip-text: _("Adjust Volume");
+                  valign: center;
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+
+                Button {
+                  icon-name: "settings-symbolic";
+                  action-name: "player.show-settings";
+                  tooltip-text: _("Advanced settings");
+                  valign: center;
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+
+                Button {
+                  visible: bind template.fullscreened inverted;
+                  icon-name: "view-fullscreen-symbolic";
+                  action-name: "player.toggle-fullscreen";
+                  tooltip-text: _("Fullscreen");
+                  valign: center;
+
+                  accessibility {
+                    label: _("Fullscreen");
+                  }
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+
+                Button {
+                  visible: bind template.fullscreened;
+                  icon-name: "view-restore-symbolic";
+                  action-name: "player.toggle-fullscreen";
+                  valign: center;
+                  tooltip-text: _("Exit Fullscreen");
+
+                  accessibility {
+                    label: _("Exit Fullscreen");
+                  }
+
+                  styles [
+                    "flat",
+                    "circular",
+                  ]
+                }
+              }
+            }
+          }
 
           Box {
             orientation: horizontal;
-
-            Button _previous_button {
-              icon-name: "media-skip-backward-symbolic";
-              action-name: "mpv.previous-video";
-
-              styles [
-                "flat",
-              ]
-            }
-
-            Button _play_button {
-              focusable: true;
-              receives-default: true;
-              tooltip-text: _("Pause");
-              clicked => $on_play_pause_clicked() swapped;
-
-              Image play_pause_image {
-                icon-name: "media-playback-pause-symbolic";
-              }
-
-              styles [
-                "flat",
-              ]
-            }
-
-            Button _next_button {
-              icon-name: "media-skip-forward-symbolic";
-              action-name: "mpv.next-video";
-
-              styles [
-                "flat",
-              ]
-            }
+            spacing: 8;
 
             Label progress_time_label {
               focusable: false;
@@ -232,7 +398,7 @@ template $MPVPage: Adw.NavigationPage {
               label: "0:00";
 
               styles [
-                "monospace",
+                "numeric",
               ]
             }
 
@@ -258,414 +424,79 @@ template $MPVPage: Adw.NavigationPage {
               label: "0:00";
 
               styles [
-                "monospace",
+                "numeric",
               ]
             }
-
-            MenuButton danmaku_button {
-              icon-name: "card-bulleted-symbolic";
-              popover: danmaku_popover;
-            }
-
-            MenuButton menu_button {
-              popover: menu_popover;
-              icon-name: "emblem-system-symbolic";
-            }
-
-            Button {
-              visible: bind template.fullscreened inverted;
-              icon-name: "view-fullscreen-symbolic";
-              action-name: "win.toggle-fullscreen";
-              tooltip-text: _("Fullscreen");
-
-              accessibility {
-                label: _("Fullscreen");
-              }
-            }
-
-            Button {
-              visible: bind template.fullscreened;
-              icon-name: "view-restore-symbolic";
-              action-name: "win.toggle-fullscreen";
-              tooltip-text: _("Exit Fullscreen");
-
-              accessibility {
-                label: _("Exit Fullscreen");
-              }
-            }
-
-            styles [
-              "osd",
-              "toolbar",
-              "player-toolbar",
-            ]
           }
+
+          styles [
+            "mpv-bottom-bar",
+          ]
         }
       }
     };
   }
 }
 
-Popover menu_popover {
+Popover subtitle_tracks_popover {
   height-request: 300;
-  width-request: 400;
+  width-request: 320;
   position: top;
-  cascade-popdown: true;
+  has-arrow: true;
 
-  Adw.NavigationView {
-    Adw.NavigationPage {
-      title: _("Preferences");
+  ScrolledWindow {
+    ListBox sub_listbox {
+      selection-mode: none;
+      valign: start;
 
-      child: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {
-          show-start-title-buttons: false;
-          show-end-title-buttons: false;
-
-          styles [
-            "flat",
-          ]
-        }
-
-        content: ListBox {
-          selection-mode: none;
-
-          Adw.ActionRow {
-            title: _("Playback speed");
-
-            [suffix]
-            SpinButton speed_spin {
-              width-request: 150;
-              valign: center;
-              adjustment: playback_speed_adj;
-              digits: 2;
-              value-changed => $on_speed_value_changed() swapped;
-            }
-          }
-
-          Adw.ActionRow {
-            title: _("Volume");
-
-            [suffix]
-            SpinButton volume_spin {
-              width-request: 150;
-              valign: center;
-              adjustment: volume_adj;
-              value-changed => $on_volume_value_changed() swapped;
-            }
-          }
-
-          $AActionRow audio_tracks_action_row {
-            title: _("Audio");
-            action-name: "navigation.push";
-            action-target: "'page-3'";
-            show-arrow: "true";
-          }
-
-          $AActionRow subtitle_tracks_action_row {
-            title: _("Subtitle");
-            action-name: "navigation.push";
-            action-target: "'page-2'";
-            show-arrow: "true";
-          }
-
-          styles [
-            "boxed-list",
-            "osd",
-            "logo",
-          ]
-        };
-      };
-    }
-
-    Adw.NavigationPage {
-      title: _("Subtitle");
-      tag: "page-2";
-
-      child: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {
-          show-start-title-buttons: false;
-          show-end-title-buttons: false;
-
-          styles [
-            "flat",
-          ]
-        }
-
-        content: ScrolledWindow {
-          ListBox sub_listbox {
-            selection-mode: single;
-
-            styles [
-              "boxed-list",
-              "osd",
-              "logo",
-            ]
-          }
-        };
-      };
-    }
-
-    Adw.NavigationPage {
-      title: _("Audio");
-      tag: "page-3";
-
-      child: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {
-          show-start-title-buttons: false;
-          show-end-title-buttons: false;
-
-          styles [
-            "flat",
-          ]
-        }
-
-        content: ScrolledWindow {
-          ListBox audio_listbox {
-            selection-mode: single;
-
-            styles [
-              "boxed-list",
-              "osd",
-              "logo",
-            ]
-          }
-        };
-      };
+      styles [
+        "boxed-list-separate",
+      ]
     }
   }
 }
 
-Popover danmaku_popover {
+Popover audio_tracks_popover {
   height-request: 300;
-  width-request: 400;
+  width-request: 320;
   position: top;
-  cascade-popdown: true;
+  has-arrow: true;
 
-  Adw.NavigationView {
-    Adw.NavigationPage {
-      title: _("Danmaku");
+  ScrolledWindow {
+    ListBox audio_listbox {
+      selection-mode: none;
+      valign: start;
 
-      child: Adw.ToolbarView {
-        [top]
-        Adw.HeaderBar {
-          show-start-title-buttons: false;
-          show-end-title-buttons: false;
-
-          [end]
-          Switch danmaku_switch {
-            state-set => $on_danmaku_switch_state_set() swapped;
-          }
-
-          styles [
-            "flat",
-          ]
-        }
-
-        content: Adw.PreferencesPage danmaku_page {
-          description: _("No danmakus loaded");
-
-          Adw.PreferencesGroup danmaku_agroup {
-            title: _("Appearence");
-            sensitive: bind danmaku_switch.active;
-
-            Adw.ActionRow {
-              title: _("Danmaku Opacity");
-
-              [suffix]
-              SpinButton danmaku_opacity {
-                width-request: 50;
-                valign: center;
-                adjustment: danmaku_opacity_adj;
-                digits: 2;
-              }
-            }
-
-            Adw.ExpanderRow {
-              /* Translators: Translators: if you want reserve the 'and' char, keep it '&amp;amp;' */
-              title: _("Margin &amp; Size");
-
-              Adw.ActionRow {
-                title: _("Top padding");
-
-                [suffix]
-                SpinButton danmaku_top_padding {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: danmaku_top_padding_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Row Spacing");
-
-                [suffix]
-                SpinButton danmaku_row_spacing {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: danmaku_row_spacing_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Font size");
-
-                [suffix]
-                SpinButton danmaku_font_size {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: danmaku_font_size_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Scroll danmaku max lines");
-
-                [suffix]
-                SpinButton scroll_danmaku_max_lines_button {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: scroll_danmaku_max_lines_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Topcenter danmaku max lines");
-
-                [suffix]
-                SpinButton topcenter_danmaku_max_lines_button {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: topcenter_danmaku_max_lines_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Bottomcenter danmaku max lines");
-
-                [suffix]
-                SpinButton bottomcenter_danmaku_max_lines_button {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: bottomcenter_danmaku_max_lines_adj;
-                }
-              }
-
-              Adw.ActionRow {
-                title: _("Danmaku speed");
-
-                [suffix]
-                SpinButton danmaku_speed_size {
-                  width-request: 50;
-                  valign: center;
-                  adjustment: danmaku_speed_adj;
-                  digits: 2;
-                }
-              }
-            }
-          }
-
-          Adw.PreferencesGroup {
-            title: _("Search danmaku manually (Not available yet)");
-            sensitive: bind danmaku_switch.active;
-
-            Adw.ButtonRow {
-              title: _("Search");
-              start-icon-name: "edit-find-symbolic";
-
-              styles [
-                "suggested-action",
-              ]
-            }
-          }
-
-          styles [
-            "osd",
-            "logo",
-          ]
-        };
-      };
+      styles [
+        "boxed-list-separate",
+      ]
     }
   }
 }
 
-Adjustment danmaku_top_padding_adj {
-  lower: 0;
-  upper: 50;
-  value: 10;
-  step-increment: 1;
-  page-increment: 4;
-}
+Popover volume_adj_popover {
+  position: top;
+  has-arrow: true;
 
-Adjustment danmaku_font_size_adj {
-  lower: 0;
-  upper: 100;
-  value: 24;
-  step-increment: 1;
-  page-increment: 4;
-}
+  Scale volume_scale {
+    adjustment: volume_adj;
+    height-request: 180;
+    halign: center;
+    margin-end: 6;
+    draw-value: false;
+    orientation: vertical;
+    inverted: true;
+    value-changed => $on_volume_scale_value_changed() swapped;
 
-Adjustment scroll_danmaku_max_lines_adj {
-  lower: 0;
-  upper: 80;
-  value: 20;
-  step-increment: 1;
-  page-increment: 4;
-}
-
-Adjustment danmaku_row_spacing_adj {
-  lower: 0;
-  upper: 50;
-  value: 10;
-  step-increment: 1;
-  page-increment: 4;
-}
-
-Adjustment topcenter_danmaku_max_lines_adj {
-  lower: 0;
-  upper: 12;
-  value: 5;
-  step-increment: 1;
-  page-increment: 4;
-}
-
-Adjustment bottomcenter_danmaku_max_lines_adj {
-  lower: 0;
-  upper: 12;
-  value: 5;
-  step-increment: 1;
-  page-increment: 4;
-}
-
-Adjustment danmaku_speed_adj {
-  lower: 0.10;
-  upper: 5.00;
-  value: 1.00;
-  step-increment: 0.05;
-  page-increment: 0.2;
-}
-
-Adjustment danmaku_opacity_adj {
-  lower: 0.01;
-  upper: 1.00;
-  value: 1.00;
-  step-increment: 0.05;
-  page-increment: 0.2;
-}
-
-Adjustment playback_speed_adj {
-  lower: 0.10;
-  upper: 5.00;
-  value: 1.00;
-  step-increment: 0.05;
-  page-increment: 0.2;
+    styles [
+      "accent",
+    ]
+  }
 }
 
 Adjustment volume_adj {
   lower: 0;
-  upper: 150;
+  upper: 100;
   value: 75;
   step-increment: 1;
   page-increment: 4;
@@ -675,13 +506,10 @@ SizeGroup {
   mode: vertical;
 
   widgets [
-    _previous_button,
     _play_button,
-    _next_button,
     progress_time_label,
     video_scale,
     duration_label,
-    menu_button,
   ]
 }
 
@@ -689,9 +517,7 @@ SizeGroup {
   mode: vertical;
 
   widgets [
-    _back_button,
-    network_speed_label_2,
+    network_speed_button,
     _media_info_button,
-    _playlist_button,
   ]
 }

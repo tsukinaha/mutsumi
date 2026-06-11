@@ -8,8 +8,8 @@ use std::process::Command;
 const APP_RESOURCE_PREFIX: &str = "/io/github/mutsumi";
 
 fn main() {
-    // on_build();
-    //
+    on_build();
+
     glib_build_tools::compile_resources(
         &["resources"],
         "resources/resources.gresource.xml",
@@ -289,8 +289,14 @@ fn write_ui_gresource(
 
         let rel_text = to_unix_path(rel_to_resources);
 
+        let alias = compiled
+            .file_name()
+            .and_then(OsStr::to_str)
+            .unwrap_or_else(|| panic!("Invalid compiled UI file name: {}", compiled.display()));
+
         xml.push_str(&format!(
-            "    <file compressed=\"true\" preprocess=\"xml-stripblanks\">{}</file>\n",
+            "    <file compressed=\"true\" preprocess=\"xml-stripblanks\" alias=\"{}\">{}</file>\n",
+            xml_escape_attr(alias),
             xml_escape_text(&rel_text)
         ));
     }

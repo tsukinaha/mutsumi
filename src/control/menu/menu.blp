@@ -1,6 +1,6 @@
 using Gtk 4.0;
 
-menu video-menu {
+menu player-menu {
   section {
     item {
       custom: "menu-actions";
@@ -9,42 +9,22 @@ menu video-menu {
 
   section {
     item {
-      label: _("_Next");
-      action: "video.next-video";
-      accel: "N";
-    }
-
-    item {
-      label: _("_Previous");
-      action: "video.previous-video";
-      accel: "P";
-    }
-  }
-
-  section {
-    item {
       label: _("Next chapter");
-      action: "video.chapter-next";
+      action: "player.chapter-next";
       accel: "<Control>N";
     }
 
     item {
       label: _("Previous chapter");
-      action: "video.chapter-prev";
+      action: "player.chapter-prev";
       accel: "<Control>P";
     }
   }
 
   section {
     item {
-      label: _("Playlist");
-      action: "video.show-playlist";
-      accel: "L";
-    }
-
-    item {
       label: _("Advanced settings");
-      action: "video.show-settings";
+      action: "player.show-settings";
       accel: "A";
     }
   }
@@ -52,7 +32,7 @@ menu video-menu {
   section {
     item {
       label: _("Media info");
-      action: "video.show-info";
+      action: "player.show-info";
       accel: "I";
     }
   }
@@ -60,7 +40,7 @@ menu video-menu {
   section {
     item {
       label: _("_Keyboard shortcuts");
-      action: "win.show-help-overlay";
+      action: "player.show-shortcuts";
       accel: "F1";
     }
   }

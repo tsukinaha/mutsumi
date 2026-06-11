@@ -1,57 +1,54 @@
-use adw::prelude::*;
-use glib::Object;
-use gtk::{
-    Builder,
-    PopoverMenu,
-    gdk::Rectangle,
-    gio,
-    glib,
-    subclass::prelude::*,
+use adw::{prelude::*, subclass::prelude::*};
+use gtk::{Builder, CompositeTemplate, PopoverMenu, gdk::Rectangle, gio, glib};
+
+use crate::{
+    ChapterList, ListenEvent, MPV_EVENT_CHANNEL, MpvTrack, MpvTracks, MutsumiVideoPlayer,
+    TrackKind, TrackSelection,
+    control::{ControlSidebar, GlobalToast, MenuActions, VideoScale, VolumeBar, format_duration},
 };
 
-
+/// Minimum interval between two pointer motion events that reveal the
+/// overlay, in microseconds.
 const MIN_MOTION_TIME: i64 = 100000;
-const PREV_CHAPTER_KEYVAL: u32 = 65366;
-const NEXT_CHAPTER_KEYVAL: u32 = 65365;
+const NEXT_CHAPTER_KEYVAL: u32 = 65365; // Page_Up
+const PREV_CHAPTER_KEYVAL: u32 = 65366; // Page_Down
 
 mod imp {
+    use std::cell::{Cell, RefCell};
 
-    use std::cell::{
-        Cell,
-        RefCell,
-    };
-
-    use adw::prelude::*;
     use glib::subclass::InitializingObject;
-    use gtk::{
-        CompositeTemplate,
-        PopoverMenu,
-        ShortcutsWindow,
-        glib,
-        subclass::prelude::*,
-    };
-    #[cfg(target_os = "linux")]
-    use mpris_server::LocalServer;
-    use once_cell::sync::OnceCell;
 
     use super::*;
 
-    #[derive(CompositeTemplate, Default, glib::Properties)]
-    #[template(resource = "/moe/tsuna/tsukimi/ui/mpvpage.ui")]
-    #[properties(wrapper_type = super::MPVPage)]
-    pub struct MPVPage {
-        #[property(get, set, nullable)]
-        pub url: RefCell<Option<String>>,
+    #[derive(Default, CompositeTemplate, glib::Properties)]
+    #[template(resource = "/io/github/mutsumi/ui/player.ui")]
+    #[properties(wrapper_type = super::PlayerPage)]
+    pub struct PlayerPage {
+        #[property(get, set)]
+        pub video_title: RefCell<String>,
+        #[property(get, set)]
+        pub video_subtitle: RefCell<String>,
         #[property(get, set = Self::set_fullscreened, explicit_notify)]
         pub fullscreened: Cell<bool>,
         #[property(get, set = Self::set_paused)]
         pub paused: Cell<bool>,
+
         #[template_child]
-        pub video: TemplateChild<MPVGLArea>,
+        pub split_view: TemplateChild<adw::OverlaySplitView>,
         #[template_child]
-        pub bottom_revealer: TemplateChild<gtk::Revealer>,
+        pub control_sidebar: TemplateChild<ControlSidebar>,
+        #[template_child]
+        pub video: TemplateChild<MutsumiVideoPlayer>,
+        #[template_child]
+        pub volume_bar: TemplateChild<VolumeBar>,
+        #[template_child]
+        pub loading_box: TemplateChild<gtk::Box>,
+        #[template_child]
+        pub network_speed_label: TemplateChild<gtk::Label>,
         #[template_child]
         pub top_revealer: TemplateChild<gtk::Revealer>,
+        #[template_child]
+        pub bottom_revealer: TemplateChild<gtk::Revealer>,
         #[template_child]
         pub play_pause_image: TemplateChild<gtk::Image>,
         #[template_child]
@@ -61,162 +58,76 @@ mod imp {
         #[template_child]
         pub duration_label: TemplateChild<gtk::Label>,
         #[template_child]
-        pub spinner: TemplateChild<adw::Spinner>,
+        pub playback_speed_indicator: TemplateChild<gtk::Button>,
         #[template_child]
-        pub loading_box: TemplateChild<gtk::Box>,
+        pub playback_speed_button_content: TemplateChild<adw::ButtonContent>,
         #[template_child]
-        pub network_speed_label: TemplateChild<gtk::Label>,
+        pub audio_tracks_menu_button: TemplateChild<gtk::MenuButton>,
         #[template_child]
-        pub network_speed_label_2: TemplateChild<gtk::Label>,
+        pub subtitle_tracks_menu_button: TemplateChild<gtk::MenuButton>,
         #[template_child]
-        pub menu_button: TemplateChild<gtk::MenuButton>,
+        pub volume_button: TemplateChild<gtk::MenuButton>,
         #[template_child]
-        pub danmaku_button: TemplateChild<gtk::MenuButton>,
-        #[template_child]
-        pub menu_popover: TemplateChild<gtk::Popover>,
-        #[template_child]
-        pub title_label1: TemplateChild<gtk::Label>,
-        #[template_child]
-        pub title_label2: TemplateChild<gtk::Label>,
-        #[template_child]
-        pub speed_spin: TemplateChild<gtk::SpinButton>,
-        #[template_child]
-        pub volume_spin: TemplateChild<gtk::SpinButton>,
+        pub volume_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
         pub sub_listbox: TemplateChild<gtk::ListBox>,
         #[template_child]
         pub audio_listbox: TemplateChild<gtk::ListBox>,
-        pub timeout: RefCell<Option<glib::source::SourceId>>,
-        pub back_timeout: RefCell<Option<glib::source::SourceId>>,
-        pub back: RefCell<Option<Back>>,
-        pub x: RefCell<f64>,
-        pub y: RefCell<f64>,
-        pub last_motion_time: RefCell<i64>,
-        pub suburl: RefCell<Option<String>>,
-        pub popover: RefCell<Option<PopoverMenu>>,
+
         pub menu_actions: MenuActions,
-        pub shortcuts_window: RefCell<Option<ShortcutsWindow>>,
-        #[cfg(target_os = "linux")]
-        pub mpris_server: OnceCell<LocalServer<super::MPVPage>>,
+        pub context_popover: RefCell<Option<PopoverMenu>>,
 
-        #[template_child]
-        pub volume_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub volume_bar: TemplateChild<VolumeBar>,
-
-        #[template_child]
-        pub video_overlay: TemplateChild<gtk::Overlay>,
-
-        #[template_child]
-        pub danmaku_area: TemplateChild<DanmakwArea>,
-
-        #[template_child]
-        pub danmaku_page: TemplateChild<adw::PreferencesPage>,
-
-        #[template_child]
-        pub danmaku_popover: TemplateChild<gtk::Popover>,
-
-        #[template_child]
-        pub danmaku_switch: TemplateChild<gtk::Switch>,
-
-        #[template_child]
-        pub danmaku_top_padding_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub danmaku_font_size_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub topcenter_danmaku_max_lines_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub scroll_danmaku_max_lines_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub bottomcenter_danmaku_max_lines_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub danmaku_speed_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub danmaku_row_spacing_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub danmaku_opacity_adj: TemplateChild<gtk::Adjustment>,
-
-        #[property(get, set, nullable)]
-        pub current_video: RefCell<Option<TuItem>>,
-        pub current_episode_list: RefCell<Vec<TuItem>>,
-
-        #[property(get, set, default_value = true)]
-        pub key_vaild: RefCell<bool>,
-
-        pub video_version_matcher: RefCell<Option<String>>,
-
-        pub danmaku_client: OnceCell<dandanapi::DanDanClient>,
-
-        pub danmaku_list: RefCell<Option<Vec<danmakw::Danmaku>>>,
+        pub fade_timeout: RefCell<Option<glib::source::SourceId>>,
+        pub x: Cell<f64>,
+        pub y: Cell<f64>,
+        pub last_motion_time: Cell<i64>,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MPVPage {
-        const NAME: &'static str = "MPVPage";
-        type Type = super::MPVPage;
-        type ParentType = adw::NavigationPage;
+    impl ObjectSubclass for PlayerPage {
+        const NAME: &'static str = "PlayerPage";
+        type Type = super::PlayerPage;
+        type ParentType = adw::Bin;
 
         fn class_init(klass: &mut Self::Class) {
-            MPVGLArea::ensure_type();
+            MutsumiVideoPlayer::ensure_type();
+            ControlSidebar::ensure_type();
             VideoScale::ensure_type();
-            AActionRow::ensure_type();
             VolumeBar::ensure_type();
+
             klass.bind_template();
             klass.bind_template_instance_callbacks();
-            klass.install_action("mpv.play-pause", None, move |mpv, _action, _parameter| {
-                mpv.on_play_pause_clicked();
+
+            klass.install_action("player.play-pause", None, |obj, _, _| {
+                obj.on_play_pause();
             });
-            klass.install_action("mpv.show-info", None, move |mpv, _action, _parameter| {
-                mpv.on_info_clicked();
+            klass.install_action("player.backward", None, |obj, _, _| {
+                obj.on_backward();
             });
-            klass.install_action("mpv.backward", None, move |mpv, _action, _parameter| {
-                mpv.on_backward();
+            klass.install_action("player.forward", None, |obj, _, _| {
+                obj.on_forward();
             });
-            klass.install_action("mpv.forward", None, move |mpv, _action, _parameter| {
-                mpv.on_forward();
+            klass.install_action("player.chapter-prev", None, |obj, _, _| {
+                obj.chapter_prev();
             });
-            klass.install_action("mpv.chapter-prev", None, move |mpv, _action, _parameter| {
-                mpv.chapter_prev();
+            klass.install_action("player.chapter-next", None, |obj, _, _| {
+                obj.chapter_next();
             });
-            klass.install_action("mpv.chapter-next", None, move |mpv, _action, _parameter| {
-                mpv.chapter_next();
+            klass.install_action("player.show-info", None, |obj, _, _| {
+                obj.imp().video.display_stats_toggle();
             });
-            klass.install_action(
-                "mpv.show-settings",
-                None,
-                move |mpv, _action, _parameter| {
-                    mpv.on_sidebar_clicked();
-                },
-            );
-            klass.install_action(
-                "mpv.show-playlist",
-                None,
-                move |mpv, _action, _parameter| {
-                    mpv.on_playlist_clicked();
-                },
-            );
-            klass.install_action_async(
-                "mpv.next-video",
-                None,
-                |mpv, _action, _parameter| async move {
-                    mpv.on_next_video().await;
-                },
-            );
-            klass.install_action_async(
-                "mpv.previous-video",
-                None,
-                move |mpv, _action, _parameter| async move {
-                    mpv.on_previous_video().await;
-                },
-            );
+            klass.install_action("player.show-settings", None, |obj, _, _| {
+                let split_view = &obj.imp().split_view;
+                split_view.set_show_sidebar(!split_view.shows_sidebar());
+            });
+            klass.install_action("player.show-shortcuts", None, |obj, _, _| {
+                obj.show_shortcuts_dialog();
+            });
+            klass.install_action("player.toggle-fullscreen", None, |obj, _, _| {
+                if let Some(window) = obj.root().and_downcast::<gtk::Window>() {
+                    window.set_fullscreened(!window.is_fullscreen());
+                }
+            });
         }
 
         fn instance_init(obj: &InitializingObject<Self>) {
@@ -225,78 +136,16 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for MPVPage {
+    impl ObjectImpl for PlayerPage {
         fn constructed(&self) {
             self.parent_constructed();
 
-            SETTINGS
-                .bind(
-                    "mpv-show-buffer-speed",
-                    &self.network_speed_label_2.get(),
-                    "visible",
-                )
-                .build();
-
-            SETTINGS
-                .bind("mpv-default-volume", &self.volume_adj.get(), "value")
-                .build();
-
-            SETTINGS
-                .bind("is-danmaku-enabled", &self.danmaku_switch.get(), "active")
-                .build();
-
-            self.danmaku_area
-                .set_enable_danmaku(SETTINGS.is_danmaku_enabled());
-
-            self.danmaku_font_size_adj
-                .bind_property("value", &self.danmaku_area.get(), "font-size")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.danmaku_top_padding_adj
-                .bind_property("value", &self.danmaku_area.get(), "top-padding")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.scroll_danmaku_max_lines_adj
-                .bind_property("value", &self.danmaku_area.get(), "max-lines")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.bottomcenter_danmaku_max_lines_adj
-                .bind_property("value", &self.danmaku_area.get(), "bottom-center-max-lines")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.topcenter_danmaku_max_lines_adj
-                .bind_property("value", &self.danmaku_area.get(), "top-center-max-lines")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.danmaku_speed_adj
-                .bind_property("value", &self.danmaku_area.get(), "speed-factor")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.danmaku_row_spacing_adj
-                .bind_property("value", &self.danmaku_area.get(), "row-spacing")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            self.danmaku_opacity_adj
-                .bind_property("value", &self.danmaku_area.get(), "opacity")
-                .flags(glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-
-            SETTINGS
-                .bind("danmaku-opacity", &self.danmaku_opacity_adj.get(), "value")
-                .build();
-
-            self.video_scale.set_player(Some(&self.video.get()));
-
             let obj = self.obj();
 
-            obj.set_popover();
+            self.control_sidebar.set_player(Some(&self.video.get()));
+            self.video_scale.set_player(Some(&self.video.get()));
+
+            obj.setup_context_menu();
 
             obj.connect_root_notify(|obj| {
                 if let Some(window) = obj.root().and_downcast::<gtk::Window>() {
@@ -308,177 +157,179 @@ mod imp {
             });
 
             obj.listen_events();
+        }
 
-            self.init_dandanapi_client();
-
-            // Initialize MPRIS server
-            #[cfg(target_os = "linux")]
-            glib::spawn_future_local(glib::clone!(
-                #[weak(rename_to = imp)]
-                self,
-                async move {
-                    let app_id = format!("{}.{}", APP_ID, "mpv");
-                    if let Err(e) = imp.obj().initialize_mpris(&app_id).await {
-                        tracing::warn!("Failed to initialize mpris server: {}", e);
-                    }
-                }
-            ));
+        fn dispose(&self) {
+            if let Some(popover) = self.context_popover.take() {
+                popover.unparent();
+            }
         }
     }
 
-    impl WidgetImpl for MPVPage {
-        fn unrealize(&self) {
-            self.video_overlay
-                .get()
-                .remove_overlay(&self.danmaku_area.get());
-            self.parent_unrealize();
-        }
-    }
+    impl WidgetImpl for PlayerPage {}
+    impl BinImpl for PlayerPage {}
 
-    impl WindowImpl for MPVPage {}
-
-    impl ApplicationWindowImpl for MPVPage {}
-
-    impl adw::subclass::navigation_page::NavigationPageImpl for MPVPage {}
-
-    impl MPVPage {
+    impl PlayerPage {
         fn set_fullscreened(&self, fullscreened: bool) {
             if fullscreened == self.fullscreened.get() {
                 return;
             }
 
             self.fullscreened.set(fullscreened);
-
             self.obj().notify_fullscreened();
         }
 
         fn set_paused(&self, paused: bool) {
             let play_pause_image = self.play_pause_image.get();
-            let menu_actions_play_pause_button = self.menu_actions.imp().play_pause_button.get();
             if paused {
                 play_pause_image.set_icon_name(Some("media-playback-start-symbolic"));
-                play_pause_image.set_tooltip_text(Some(&gettext("Play")));
-                menu_actions_play_pause_button.set_icon_name("media-playback-start-symbolic");
-                menu_actions_play_pause_button.set_tooltip_text(Some(&gettext("Play")));
+                play_pause_image.set_tooltip_text(Some("Play"));
             } else {
                 play_pause_image.set_icon_name(Some("media-playback-pause-symbolic"));
-                play_pause_image.set_tooltip_text(Some(&gettext("Pause")));
-                menu_actions_play_pause_button.set_icon_name("media-playback-pause-symbolic");
-                menu_actions_play_pause_button.set_tooltip_text(Some(&gettext("Pause")));
+                play_pause_image.set_tooltip_text(Some("Pause"));
             }
+            self.menu_actions.set_paused(paused);
             self.paused.set(paused);
         }
     }
 }
 
 glib::wrapper! {
-    pub struct MPVPage(ObjectSubclass<imp::MPVPage>)
-        @extends gtk::ApplicationWindow, gtk::Window, gtk::Widget ,adw::NavigationPage,
-        @implements gio::ActionGroup, gio::ActionMap, gtk::Accessible, gtk::Buildable,
-                    gtk::ConstraintTarget, gtk::Native, gtk::Root, gtk::ShortcutManager;
+    /// A self-contained video player widget: video output plus on-screen
+    /// controls, context menu and an advanced settings sidebar.
+    pub struct PlayerPage(ObjectSubclass<imp::PlayerPage>)
+        @extends gtk::Widget, adw::Bin,
+        @implements gio::ActionGroup, gio::ActionMap, gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
-impl Default for MPVPage {
+impl Default for PlayerPage {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[gtk::template_callbacks]
-impl MPVPage {
+impl PlayerPage {
     pub fn new() -> Self {
-        Object::new()
+        glib::Object::new()
     }
 
-
-    #[template_callback]
-    fn on_progress_value_changed(&self, progress_scale: &VideoScale) {
-        let label = &self.imp().progress_time_label.get();
-        let position = progress_scale.value();
-        label.set_text(&format_duration(position as i64));
+    /// The underlying video player, for direct backend access.
+    pub fn player(&self) -> MutsumiVideoPlayer {
+        self.imp().video.get()
     }
 
-    #[template_callback]
-    fn on_info_clicked(&self) {
-        let mpv = &self.imp().video;
-        mpv.display_stats_toggle();
+    pub fn play(&self, url: &str, percentage: f64) {
+        self.imp().video.play(url, percentage);
     }
 
+    pub fn stop(&self) {
+        self.imp().video.stop();
+    }
 
-    fn on_cache_time_update(&self, value: i64) {
-        self.imp().video_scale.set_cache_end_time(value);
+    /// Show or hide the on-screen controls programmatically. They will
+    /// still fade out automatically once the pointer rests on the video.
+    pub fn reveal_controls(&self, reveal: bool) {
+        self.set_reveal_overlay(reveal);
+        if reveal {
+            self.reset_fade_timeout();
+        }
+    }
+
+    fn setup_context_menu(&self) {
+        let imp = self.imp();
+        let builder = Builder::from_resource("/io/github/mutsumi/ui/menu.ui");
+        let Some(menu) = builder.object::<gio::MenuModel>("player-menu") else {
+            tracing::error!("Failed to load player context menu model");
+            return;
+        };
+
+        let popover = PopoverMenu::builder()
+            .menu_model(&menu)
+            .halign(gtk::Align::Start)
+            .has_arrow(false)
+            .build();
+        popover.set_parent(self);
+        popover.add_child(&imp.menu_actions, "menu-actions");
+        imp.context_popover.replace(Some(popover));
+    }
+
+    fn listen_events(&self) {
+        glib::spawn_future_local(glib::clone!(
+            #[weak(rename_to = obj)]
+            self,
+            async move {
+                while let Ok(value) = MPV_EVENT_CHANNEL.rx.recv_async().await {
+                    match value {
+                        ListenEvent::Duration(value) => {
+                            obj.update_duration(value);
+                        }
+                        ListenEvent::PausedForCache(true) | ListenEvent::Seek => {
+                            obj.update_seeking(true);
+                        }
+                        ListenEvent::PausedForCache(false) | ListenEvent::PlaybackRestart => {
+                            obj.update_seeking(false);
+                        }
+                        ListenEvent::StartFile => {
+                            obj.on_start_file();
+                        }
+                        ListenEvent::Eof(_) => {
+                            obj.update_seeking(false);
+                        }
+                        ListenEvent::Error(value) => {
+                            tracing::error!("MPV error: {value}");
+                            obj.toast(value);
+                        }
+                        ListenEvent::Pause(value) => {
+                            obj.set_paused(value);
+                        }
+                        ListenEvent::CacheSpeed(value) => {
+                            obj.on_cache_speed_update(value);
+                        }
+                        ListenEvent::TrackList(value) => {
+                            obj.on_track_list(value);
+                        }
+                        ListenEvent::Volume(value) => {
+                            obj.on_volume_update(value);
+                        }
+                        ListenEvent::Speed(value) => {
+                            obj.on_speed_update(value);
+                        }
+                        ListenEvent::Shutdown => {
+                            tracing::warn!("MPV has been shut down");
+                        }
+                        ListenEvent::DemuxerCacheTime(value) => {
+                            obj.imp().video_scale.set_cache_end_time(value);
+                        }
+                        ListenEvent::TimePos(value) => {
+                            obj.on_time_pos(value);
+                        }
+                        ListenEvent::ChapterList(value) => {
+                            obj.on_chapter_list(value);
+                        }
+                    }
+                }
+            }
+        ));
+    }
+
+    fn on_start_file(&self) {
+        self.imp().video_scale.reset_scale();
+        self.update_seeking(true);
     }
 
     fn update_duration(&self, value: f64) {
         let imp = self.imp();
+        let duration = format_duration(value as i64);
+        let width_chars = duration.chars().count() as i32;
         imp.video_scale.set_range(0.0, value);
-        imp.duration_label.set_text(&format_duration(value as i64));
-    }
-
-    fn speed_cb(&self, value: f64) {
-        self.imp().speed_spin.set_value(value);
-    }
-
-    fn volume_cb(&self, value: i64) {
-        self.imp().volume_spin.set_value(value as f64);
-        self.imp().volume_bar.set_level(value as f64 / 100.0);
-    }
-
-    fn scale_cb(&self, value: i64) {
-        self.imp().video_scale.set_value(value as f64);
-    }
-
-    #[template_callback]
-    fn video_scroll_cb(&self, _: f64, dy: f64) -> bool {
-        self.imp().video.volume_scroll(-dy as i64 * 5);
-        true
-    }
-
-    #[template_callback]
-    fn on_speed_value_changed(&self, btn: &gtk::SpinButton) {
-        let imp = self.imp();
-        imp.video.set_speed(btn.value());
-    }
-
-    #[template_callback]
-    fn on_volume_value_changed(&self, btn: &gtk::SpinButton) {
-        let imp = self.imp();
-        imp.video.set_volume(btn.value() as i64);
-    }
-
-    fn on_start_file(&self) {
-        let imp = self.imp();
-        if let Some(suburl) = imp.suburl.borrow().as_ref() {
-            imp.video.add_sub(suburl);
-        }
-        self.update_timeout();
-        self.handle_callback(BackType::Start);
+        imp.progress_time_label.set_width_chars(width_chars);
+        imp.duration_label.set_width_chars(width_chars);
+        imp.duration_label.set_text(&duration);
     }
 
     fn update_seeking(&self, seeking: bool) {
-        let spinner = &self.imp().spinner;
-        let loading_box = &self.imp().loading_box;
-        if seeking {
-            loading_box.set_visible(true);
-            spinner.set_visible(true);
-        } else {
-            loading_box.set_visible(false);
-            spinner.set_visible(false);
-        }
-    }
-
-
-
-    pub fn on_pause_update(&self, value: bool) {
-        if !value {
-            self.update_timeout();
-            self.notify_playing();
-        } else {
-            self.remove_timeout();
-            self.notify_player_paused();
-        }
-
-        self.set_paused(value);
+        self.imp().loading_box.set_visible(seeking);
     }
 
     fn on_cache_speed_update(&self, value: i64) {
@@ -490,23 +341,212 @@ impl MPVPage {
         }
     }
 
+    fn on_volume_update(&self, value: i64) {
+        let imp = self.imp();
+        imp.volume_adj.set_value(value as f64);
+        imp.volume_bar.set_level(value as f64 / 100.0);
+
+        let icon_name = match value {
+            0 => "audio-volume-muted-symbolic",
+            value if value < 33 => "audio-volume-low-symbolic",
+            value if value < 66 => "audio-volume-medium-symbolic",
+            _ => "audio-volume-high-symbolic",
+        };
+        imp.volume_button.set_icon_name(icon_name);
+    }
+
+    fn on_speed_update(&self, value: f64) {
+        let imp = self.imp();
+        imp.playback_speed_button_content
+            .set_label(&format!("{value:.2}x"));
+        imp.playback_speed_indicator
+            .set_visible((value * 100.0).round() as i64 != 100);
+        imp.control_sidebar.set_playback_speed(value);
+    }
+
+    fn show_shortcuts_dialog(&self) {
+        let builder = Builder::from_resource("/io/github/mutsumi/ui/shortcuts.ui");
+        let Some(dialog) = builder.object::<adw::ShortcutsDialog>("shortcuts_dialog") else {
+            tracing::error!("Failed to load shortcuts dialog");
+            return;
+        };
+        dialog.present(Some(self));
+    }
+
+    fn on_time_pos(&self, value: i64) {
+        let imp = self.imp();
+        if !imp.video_scale.is_dragging() {
+            imp.video_scale.set_value(value as f64);
+        }
+    }
+
+    fn on_chapter_list(&self, value: ChapterList) {
+        self.imp().video_scale.set_chapter_list(value);
+    }
+
+    fn on_track_list(&self, value: MpvTracks) {
+        let imp = self.imp();
+        self.bind_tracks(
+            value.audio_tracks,
+            &imp.audio_listbox.get(),
+            TrackKind::Audio,
+        );
+        self.bind_tracks(value.sub_tracks, &imp.sub_listbox.get(), TrackKind::Subtitle);
+    }
+
+    fn bind_tracks(&self, tracks: Vec<MpvTrack>, listbox: &gtk::ListBox, kind: TrackKind) {
+        let obj = self.clone();
+        let listbox = listbox.clone();
+
+        glib::spawn_future_local(async move {
+            let current_id = obj.imp().video.get_track_id(kind).await;
+
+            while let Some(row) = listbox.first_child() {
+                listbox.remove(&row);
+            }
+
+            let group_check = obj.append_track_row(&listbox, "None", "", 0 == current_id, None, {
+                let obj = obj.clone();
+                move || obj.set_track(kind, 0)
+            });
+
+            for track in tracks {
+                let title = if track.title == "unknown" {
+                    format!("Track {}", track.id)
+                } else {
+                    track.title.clone()
+                };
+                let id = track.id;
+                obj.append_track_row(
+                    &listbox,
+                    &title,
+                    &track.lang,
+                    id == current_id,
+                    Some(&group_check),
+                    {
+                        let obj = obj.clone();
+                        move || obj.set_track(kind, id)
+                    },
+                );
+            }
+        });
+    }
+
+    fn append_track_row(
+        &self, listbox: &gtk::ListBox, title: &str, subtitle: &str, active: bool,
+        group: Option<&gtk::CheckButton>, on_activated: impl Fn() + 'static,
+    ) -> gtk::CheckButton {
+        let check = gtk::CheckButton::builder()
+            .valign(gtk::Align::Center)
+            .can_focus(false)
+            .build();
+        check.set_group(group);
+        check.set_active(active);
+
+        let row = adw::ActionRow::builder()
+            .title(glib::markup_escape_text(title))
+            .subtitle(glib::markup_escape_text(subtitle))
+            .activatable_widget(&check)
+            .build();
+        row.add_prefix(&check);
+
+        check.connect_toggled(move |check| {
+            if check.is_active() {
+                on_activated();
+            }
+        });
+
+        listbox.append(&row);
+        check
+    }
+
+    fn set_track(&self, kind: TrackKind, track_id: i64) {
+        let selection = if track_id == 0 {
+            TrackSelection::None
+        } else {
+            TrackSelection::Track(track_id)
+        };
+
+        let video = &self.imp().video;
+        match kind {
+            TrackKind::Audio => video.set_aid(selection),
+            TrackKind::Subtitle => video.set_sid(selection),
+            TrackKind::Video => {}
+        }
+    }
+
+    #[template_callback]
+    fn on_progress_value_changed(&self, progress_scale: &VideoScale) {
+        let label = &self.imp().progress_time_label;
+        label.set_text(&format_duration(progress_scale.value() as i64));
+    }
+
+    #[template_callback]
+    fn on_volume_scale_value_changed(&self, scale: &gtk::Scale) {
+        self.imp().video.set_volume(scale.value() as i64);
+    }
+
+    #[template_callback]
+    fn playback_speed_indicator_cb(&self, _btn: &gtk::Button) {
+        self.imp().video.set_speed(1.0);
+    }
+
+    #[template_callback]
+    fn video_scroll_cb(&self, _dx: f64, dy: f64) -> bool {
+        self.imp().video.volume_scroll(-dy as i64 * 5);
+        true
+    }
+
+    #[template_callback]
+    fn left_click_cb(&self, _n: i32, _x: f64, _y: f64) {
+        self.grab_focus();
+        self.imp().video.command_pause();
+    }
+
+    #[template_callback]
+    fn right_click_cb(&self, _n: i32, x: f64, y: f64) {
+        if let Some(popover) = self.imp().context_popover.borrow().as_ref() {
+            popover.set_pointing_to(Some(&Rectangle::new(x as i32, y as i32, 0, 0)));
+            popover.popup();
+        };
+    }
+
+    #[template_callback]
+    fn on_key_pressed(&self, keyval: u32, _keycode: u32, state: gtk::gdk::ModifierType) -> bool {
+        if self.imp().split_view.shows_sidebar() {
+            return false;
+        }
+
+        self.imp().video.press_key(keyval, state);
+        true
+    }
+
+    #[template_callback]
+    fn on_key_released(&self, keyval: u32, _keycode: u32, state: gtk::gdk::ModifierType) {
+        if self.imp().split_view.shows_sidebar() {
+            return;
+        }
+
+        self.imp().video.release_key(keyval, state);
+    }
+
     #[template_callback]
     fn on_motion(&self, x: f64, y: f64) {
-        let old_x = *self.x();
-        let old_y = *self.y();
+        let imp = self.imp();
+
+        let old_x = imp.x.get();
+        let old_y = imp.y.get();
 
         if old_x == x && old_y == y {
             return;
         }
 
-        let imp = self.imp();
-
-        *imp.x.borrow_mut() = x;
-        *imp.y.borrow_mut() = y;
+        imp.x.set(x);
+        imp.y.set(y);
 
         let now = glib::monotonic_time();
 
-        if now - *self.last_motion_time() < MIN_MOTION_TIME {
+        if now - imp.last_motion_time.get() < MIN_MOTION_TIME {
             return;
         }
 
@@ -519,23 +559,23 @@ impl MPVPage {
 
             self.reset_fade_timeout();
 
-            *imp.last_motion_time.borrow_mut() = now;
+            imp.last_motion_time.set(now);
         }
     }
 
     #[template_callback]
     fn on_leave(&self) {
         let imp = self.imp();
-        *imp.x.borrow_mut() = -1.0;
-        *imp.y.borrow_mut() = -1.0;
+        imp.x.set(-1.0);
+        imp.y.set(-1.0);
 
-        if self.toolbar_revealed() && imp.timeout.borrow().is_none() {
+        if self.toolbar_revealed() && imp.fade_timeout.borrow().is_none() {
             self.reset_fade_timeout();
         }
     }
 
     #[template_callback]
-    fn on_enter(&self) {
+    fn on_enter(&self, _x: f64, _y: f64) {
         if self.toolbar_revealed() {
             self.reset_fade_timeout();
         } else {
@@ -543,10 +583,40 @@ impl MPVPage {
         }
     }
 
+    fn on_play_pause(&self) {
+        self.imp().video.command_pause();
+    }
+
+    fn on_backward(&self) {
+        let imp = self.imp();
+        imp.video.seek_backward(imp.control_sidebar.seek_backward_step());
+    }
+
+    fn on_forward(&self) {
+        let imp = self.imp();
+        imp.video.seek_forward(imp.control_sidebar.seek_forward_step());
+    }
+
+    fn chapter_prev(&self) {
+        self.imp()
+            .video
+            .press_key(PREV_CHAPTER_KEYVAL, gtk::gdk::ModifierType::empty());
+    }
+
+    fn chapter_next(&self) {
+        self.imp()
+            .video
+            .press_key(NEXT_CHAPTER_KEYVAL, gtk::gdk::ModifierType::empty());
+    }
+
+    fn toolbar_revealed(&self) -> bool {
+        self.imp().bottom_revealer.is_child_revealed()
+    }
+
     fn reset_fade_timeout(&self) {
         let imp = self.imp();
-        if let Some(timeout) = imp.timeout.take() {
-            glib::source::SourceId::remove(timeout);
+        if let Some(timeout) = imp.fade_timeout.take() {
+            timeout.remove();
         }
         let timeout = glib::timeout_add_seconds_local_once(
             3,
@@ -558,36 +628,11 @@ impl MPVPage {
                 }
             ),
         );
-        *imp.timeout.borrow_mut() = Some(timeout);
-    }
-
-    fn x(&self) -> impl std::ops::Deref<Target = f64> + '_ {
-        self.imp().x.borrow()
-    }
-
-    fn y(&self) -> impl std::ops::Deref<Target = f64> + '_ {
-        self.imp().y.borrow()
-    }
-
-    fn last_motion_time(&self) -> impl std::ops::Deref<Target = i64> + '_ {
-        self.imp().last_motion_time.borrow()
-    }
-
-    fn toolbar_revealed(&self) -> bool {
-        self.imp().bottom_revealer.is_child_revealed()
+        imp.fade_timeout.replace(Some(timeout));
     }
 
     fn fade_overlay_delay_cb(&self) {
-        *self.imp().timeout.borrow_mut() = None;
-
-        let binding = self.ancestor(adw::OverlaySplitView::static_type());
-        let Some(view) = binding.and_downcast_ref::<adw::OverlaySplitView>() else {
-            return;
-        };
-
-        if view.shows_sidebar() {
-            return;
-        }
+        self.imp().fade_timeout.replace(None);
 
         if self.toolbar_revealed() && self.can_fade_overlay() {
             self.set_reveal_overlay(false);
@@ -595,32 +640,29 @@ impl MPVPage {
     }
 
     fn can_fade_overlay(&self) -> bool {
-        let x = *self.x();
-        let y = *self.y();
+        let imp = self.imp();
+
+        if imp.split_view.shows_sidebar() {
+            return false;
+        }
+
+        if imp.audio_tracks_menu_button.is_active()
+            || imp.subtitle_tracks_menu_button.is_active()
+            || imp.volume_button.is_active()
+        {
+            return false;
+        }
+
+        let x = imp.x.get();
+        let y = imp.y.get();
         if x >= 0.0 && y >= 0.0 {
-            let widget = self.pick(x, y, gtk::PickFlags::DEFAULT);
-            if let Some(widget) = widget {
-                if !widget.is::<MPVGLArea>() && !widget.is::<DanmakwArea>() {
+            // Only fade out when the pointer rests on the video itself, not
+            // on any of the overlaid controls.
+            if let Some(widget) = self.pick(x, y, gtk::PickFlags::DEFAULT) {
+                if widget.ancestor(MutsumiVideoPlayer::static_type()).is_none() {
                     return false;
                 }
             }
-        }
-
-        if self.imp().menu_button.is_active() {
-            return false;
-        }
-
-        if self.imp().danmaku_button.is_active() {
-            return false;
-        }
-
-        let binding = self.ancestor(gtk::Stack::static_type());
-        let Some(view) = binding.and_downcast_ref::<gtk::Stack>() else {
-            return false;
-        };
-
-        if view.visible_child_name() != Some("mpv".into()) {
-            return false;
         }
 
         true
@@ -630,332 +672,16 @@ impl MPVPage {
         let imp = self.imp();
         imp.bottom_revealer.set_reveal_child(reveal);
         imp.top_revealer.set_reveal_child(reveal);
+
         let Some(surface) = self.native().and_then(|f| f.surface()) else {
             return;
         };
         let cursor = if reveal {
             gtk::gdk::Cursor::from_name("default", None)
         } else {
-            let Some(pixbuf) =
-                gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, true, 8, 1, 1)
-            else {
-                return;
-            };
-            pixbuf.fill(0);
-            let texture = gtk::gdk::Texture::for_pixbuf(&pixbuf);
-            Some(gtk::gdk::Cursor::from_texture(&texture, 0, 0, None))
+            gtk::gdk::Cursor::from_name("none", None)
         };
 
         surface.set_cursor(cursor.as_ref());
     }
-
-    #[template_callback]
-    fn on_play_pause_clicked(&self) {
-        let video = &self.imp().video;
-        video.pause();
-    }
-
-    #[template_callback]
-    fn on_stop_clicked(&self) {
-        self.handle_callback(BackType::Stop);
-        self.remove_timeout();
-        self.imp().pause_danmaku();
-
-        let mpv = self.mpv();
-        mpv.pause(true);
-        mpv.stop();
-        mpv.event_thread_alive
-            .store(PAUSED, std::sync::atomic::Ordering::SeqCst);
-        let root = self.root();
-        let window = root
-            .and_downcast_ref::<crate::ui::widgets::window::Window>()
-            .unwrap();
-        window.imp().stack.set_visible_child_name("main");
-        window.allow_suspend();
-
-        spawn_g_timeout(glib::clone!(
-            #[weak(rename_to = obj)]
-            self,
-            #[weak]
-            window,
-            async move {
-                if let Some(timeout) = obj.imp().timeout.take() {
-                    glib::source::SourceId::remove(timeout);
-                }
-                obj.set_reveal_overlay(true);
-                window.update_item_page().await;
-            }
-        ));
-        self.notify_stopped();
-    }
-
-
-    #[template_callback]
-    fn right_click_cb(&self, _n: i32, x: f64, y: f64) {
-        if let Some(popover) = self.imp().popover.borrow().as_ref() {
-            popover.set_pointing_to(Some(&Rectangle::new(x as i32, y as i32, 0, 0)));
-            popover.popup();
-        };
-    }
-
-    #[template_callback]
-    fn left_click_cb(&self) {
-        self.imp().video.pause();
-    }
-
-    #[template_callback]
-    fn on_playlist_clicked(&self) {
-        let binding = self.root();
-        let Some(window) = binding.and_downcast_ref::<Window>() else {
-            return;
-        };
-        window.view_playlist();
-    }
-
-    fn on_sidebar_clicked(&self) {
-        let binding = self.root();
-        let Some(window) = binding.and_downcast_ref::<Window>() else {
-            return;
-        };
-        window.view_control_sidebar();
-    }
-
-    pub fn key_pressed_cb(&self, key: u32, state: gtk::gdk::ModifierType) {
-        let binding = self.ancestor(adw::OverlaySplitView::static_type());
-        let Some(view) = binding.and_downcast_ref::<adw::OverlaySplitView>() else {
-            return;
-        };
-
-        if view.shows_sidebar() {
-            return;
-        }
-
-        self.imp().video.press_key(key, state)
-    }
-
-    pub fn key_released_cb(&self, key: u32, state: gtk::gdk::ModifierType) {
-        let binding = self.ancestor(adw::OverlaySplitView::static_type());
-        let Some(view) = binding.and_downcast_ref::<adw::OverlaySplitView>() else {
-            return;
-        };
-
-        if view.shows_sidebar() {
-            return;
-        }
-
-        self.imp().video.release_key(key, state)
-    }
-
-    pub fn set_popover(&self) {
-        let imp = self.imp();
-        let builder = Builder::from_resource("/moe/tsuna/tsukimi/ui/mpv_menu.ui");
-        let menu = builder.object::<gio::MenuModel>("mpv-menu");
-        match menu {
-            Some(popover) => {
-                let popover = PopoverMenu::builder()
-                    .menu_model(&popover)
-                    .halign(gtk::Align::Start)
-                    .has_arrow(false)
-                    .build();
-                popover.set_parent(self);
-                popover.add_child(&imp.menu_actions, "menu-actions");
-                let _ = imp.popover.replace(Some(popover));
-            }
-            None => eprintln!("Failed to load popover"),
-        }
-    }
-
-    pub fn on_backward(&self) {
-        let video = &self.imp().video;
-        let step = SETTINGS.mpv_seek_backward_step() as i64;
-        video.seek_backward(step);
-        self.notify_seeked(step);
-    }
-
-    pub fn on_forward(&self) {
-        let video = &self.imp().video;
-        let step = SETTINGS.mpv_seek_forward_step() as i64;
-        video.seek_forward(step);
-        self.notify_seeked(step);
-    }
-
-    pub fn chapter_prev(&self) {
-        self.key_pressed_cb(PREV_CHAPTER_KEYVAL, gtk::gdk::ModifierType::empty());
-    }
-
-    pub fn chapter_next(&self) {
-        self.key_pressed_cb(NEXT_CHAPTER_KEYVAL, gtk::gdk::ModifierType::empty());
-    }
-
-    pub async fn load_danmaku(&self) {
-        if !self.key_vaild() {
-            return;
-        }
-
-        let Some(item) = self.current_video() else {
-            return;
-        };
-
-        let (anime, episode, time_ticks) = {
-            if let Some(series_name) = item.series_name() {
-                (series_name, item.name(), item.playback_position_ticks())
-            } else {
-                (
-                    item.name(),
-                    "movie".to_string(),
-                    item.playback_position_ticks(),
-                )
-            }
-        };
-
-        let time_milis = (time_ticks / 10000) as f64;
-
-        let imp = self.imp();
-        let danmaku = self
-            .request_danmaku(dandanapi::RequestEpisodes {
-                anime,
-                episode,
-                tmdb_id: None,
-            })
-            .await;
-
-        match danmaku {
-            Ok(danmaku) => {
-                self.imp().danmaku_page.set_description(&format!(
-                    "{} {}",
-                    danmaku.len(),
-                    gettext("Danmaku Loaded")
-                ));
-                imp.init_danmaku(danmaku, time_milis);
-            }
-            Err(e) => {
-                tracing::error!("Loading danmaku error: {}", e);
-                self.imp()
-                    .danmaku_page
-                    .set_description(&gettext("No Danmaku Loaded"));
-            }
-        }
-    }
-
-    pub async fn request_danmaku(
-        &self, request_episodes: dandanapi::RequestEpisodes,
-    ) -> Result<Vec<danmakw::Danmaku>> {
-        let client = self
-            .imp()
-            .danmaku_client
-            .get()
-            .ok_or_else(|| anyhow::anyhow!("Danmaku client not initialized"))?;
-
-        let route = client.route(dandanapi::Episodes(request_episodes));
-
-        let response = spawn_tokio(async move {
-            let response = route.await?;
-            Ok::<dandanapi::SearchEpisodesResponse, anyhow::Error>(response)
-        })
-        .await?;
-
-        let episode_id = response
-            .animes
-            .and_then(|anims| anims.first()?.episodes.first().map(|ep| ep.episode_id))
-            .ok_or_else(|| anyhow::anyhow!("No episode found"))?;
-
-        let route = client.route(dandanapi::Comments {
-            episode_id,
-            request_comments: dandanapi::RequestComments {
-                from: 0,
-                with_related: true,
-                ch_convert: dandanapi::ChConvert::NONE,
-            },
-        });
-
-        let danmaku = spawn_tokio(async move {
-            let comments = route
-                .await?
-                .comments
-                .ok_or_else(|| anyhow::anyhow!("No comment found"))?;
-
-            let danmaku = comments
-                .into_iter()
-                .map(|comment| comment.into_danmaku())
-                .collect::<Vec<_>>();
-
-            Ok::<Vec<danmakw::Danmaku>, anyhow::Error>(danmaku)
-        })
-        .await?;
-
-        Ok(danmaku)
-    }
-
-    #[template_callback]
-    pub fn on_danmaku_switch_state_set(&self, state: bool) -> bool {
-        self.imp().danmaku_area.set_enable_danmaku(state);
-
-        if state {
-            if let Some(danmaku) = self.imp().danmaku_list.borrow().as_ref() {
-                self.imp().danmaku_area.set_danmaku(danmaku.to_owned());
-                self.imp().resume_danmaku();
-            } else {
-                spawn(glib::clone!(
-                    #[weak(rename_to = obj)]
-                    self,
-                    async move {
-                        obj.load_danmaku().await;
-                    }
-                ));
-            }
-        } else {
-            self.imp().danmaku_area.clear_danmaku();
-            self.imp().pause_danmaku();
-        }
-
-        let _ = SETTINGS.set_danmaku_enabled(state);
-
-        false
-    }
-
-    pub fn notify_has_chapters(&self, has_chapters: bool) {
-        #[cfg(target_os = "linux")]
-        self.notify_mpris_has_chapters(has_chapters);
-    }
-
-    pub fn notify_playing(&self) {
-        #[cfg(target_os = "linux")]
-        self.notify_mpris_playing();
-    }
-
-    pub fn notify_player_paused(&self) {
-        #[cfg(target_os = "linux")]
-        self.notify_mpris_paused();
-    }
-
-    pub fn notify_stopped(&self) {
-        #[cfg(target_os = "linux")]
-        self.notify_mpris_stopped();
-    }
-
-    pub fn notify_seeked(&self, position: i64) {
-        #[cfg(target_os = "linux")]
-        self.notify_mpris_seeked(position);
-    }
-}
-
-pub async fn direct_stream_url(source: &MediaSource) -> Option<String> {
-    let container = source.container.to_owned()?;
-    let etag = source.etag.to_owned()?;
-    Some(
-        JELLYFIN_CLIENT
-            .get_direct_stream_url(&container, &source.id.to_owned(), &etag)
-            .await,
-    )
-}
-
-pub async fn extract_url(source: &MediaSource) -> Option<String> {
-    source
-        .direct_stream_url
-        .as_ref()
-        .or(source
-            .transcoding_url
-            .as_ref()
-            .or(direct_stream_url(source).await.as_ref()))
-        .map(|url| url.to_string())
 }

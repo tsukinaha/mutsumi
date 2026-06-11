@@ -275,6 +275,10 @@ impl MutsumiVideoSink {
         self.mpv().mpv.set_property("sub-delay", value);
     }
 
+    pub fn set_sub_justify(&self, value: &str) {
+        self.mpv().mpv.set_property("sub-justify", value.to_owned());
+    }
+
     pub fn set_sub_bold(&self, value: bool) {
         self.mpv().mpv.set_property("sub-bold", value);
     }
@@ -396,7 +400,7 @@ impl MutsumiVideoSink {
     }
 
     pub fn set_position(&self, position: f64) {
-        self.mpv().set_percent_position(position);
+        self.mpv().set_position(position);
     }
 
     pub fn set_volume(&self, volume: i64) {

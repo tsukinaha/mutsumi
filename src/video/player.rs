@@ -260,6 +260,10 @@ impl MutsumiVideoPlayer {
         self.backend_ref().set_sub_delay(value);
     }
 
+    pub fn set_sub_justify(&self, value: &str) {
+        self.backend_ref().set_sub_justify(value);
+    }
+
     pub fn set_sub_bold(&self, value: bool) {
         self.backend_ref().set_sub_bold(value);
     }

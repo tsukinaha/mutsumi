@@ -47,13 +47,13 @@ wl-proxy = { version = "0.1", features = [
 ] }
 
 [[example]]
+name = "player"
+path = "example/player.rs"
+
+[[example]]
 name = "mpv"
 path = "example/mpv.rs"
 
 [[example]]
 name = "gst"
 path = "example/gst.rs"
-
-[[example]]
-name = "proxy"
-path = "example/proxy/main.rs"

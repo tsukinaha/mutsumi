@@ -3,7 +3,7 @@ use std::{ops::Deref, sync::Arc};
 use super::*;
 use flume::{Receiver, Sender, unbounded};
 use libmpv2::{
-    Mpv,
+    Format, Mpv,
     events::{Event, PropertyData},
 };
 use once_cell::sync::Lazy;
@@ -79,7 +79,6 @@ pub enum MpvMessage {
         rx: Sender<MpvValue>,
     },
     InitRenderContext(Sender<Arc<Mpv>>),
-    WakeUp,
     Shutdown,
 }
 
@@ -124,11 +123,31 @@ impl MpvActor {
     {
         let mut mpv = Mpv::with_initializer(initializer)?;
 
-        mpv.set_wakeup_callback(move || {
-            let _ = MPV_CTRL.tx.send(MpvMessage::WakeUp);
-        });
+        mpv.disable_deprecated_events()?;
+        mpv.observe_property("duration", Format::Double, 0)?;
+        mpv.observe_property("pause", Format::Flag, 1)?;
+        mpv.observe_property("cache-speed", Format::Int64, 2)?;
+        mpv.observe_property("track-list", Format::String, 3)?;
+        mpv.observe_property("paused-for-cache", Format::Flag, 4)?;
+        mpv.observe_property("demuxer-cache-time", Format::Int64, 5)?;
+        mpv.observe_property("time-pos", Format::Int64, 6)?;
+        mpv.observe_property("volume", Format::Int64, 7)?;
+        mpv.observe_property("chapter-list", Format::String, 8)?;
+        mpv.observe_property("speed", Format::Double, 9)?;
 
-        let mut mpv = SendMpv(Arc::new(mpv));
+        let mpv = SendMpv(Arc::new(mpv));
+
+        // libmpv2 maps property-change events whose data is unavailable
+        // (format == NONE) to `None`, which is indistinguishable from an
+        // empty queue. Blocking in a dedicated thread instead of draining
+        // on wakeup callbacks makes that ambiguity harmless.
+        let event_mpv = SendMpv(Arc::clone(&mpv.0));
+        std::thread::Builder::new()
+            .name("mpv event loop".into())
+            .spawn(move || {
+                while event_mpv.handle_event() {}
+            })
+            .expect("Failed to spawn mpv event thread");
 
         spawn_tokio_blocking(move || {
             loop {
@@ -160,11 +179,6 @@ impl MpvActor {
                     MpvMessage::InitRenderContext(tx) => {
                         let _ = tx.send(Arc::clone(&mpv.0));
                     }
-                    MpvMessage::WakeUp => 'l: loop {
-                        if !mpv.handle_event() {
-                            break 'l;
-                        }
-                    },
                     MpvMessage::Shutdown => break,
                 }
             }
@@ -210,10 +224,10 @@ impl MpvActor {
 }
 
 impl SendMpv {
-    //If returns false, events are drained and caller should wait for next wakeup
-    fn handle_event(&mut self) -> bool {
-        let Some(event) = self.wait_event(0.0) else {
-            return false;
+    // Blocks until the next event. Returns false once mpv shuts down.
+    fn handle_event(&self) -> bool {
+        let Some(event) = self.wait_event(1.0) else {
+            return true;
         };
 
         match event {
@@ -294,6 +308,7 @@ impl SendMpv {
                 }
                 Event::Shutdown => {
                     let _ = MPV_EVENT_CHANNEL.tx.send(ListenEvent::Shutdown);
+                    return false;
                 }
                 _ => {}
             },

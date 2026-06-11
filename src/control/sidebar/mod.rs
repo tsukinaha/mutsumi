@@ -1,43 +1,36 @@
-use adw::{
-    prelude::*,
-    subclass::prelude::*,
-};
-use gettextrs::gettext;
-use gtk::{
-    CompositeTemplate,
-    gio,
-    glib,
-    template_callbacks,
-};
-use libmpv2::SetData;
+use adw::{prelude::*, subclass::prelude::*};
+use gtk::{CompositeTemplate, gio, glib, template_callbacks};
+
+use crate::MutsumiVideoPlayer;
 
 use super::GlobalToast;
 
 mod imp {
+    use std::cell::Cell;
+
     use glib::subclass::InitializingObject;
     use gtk::glib;
 
     use super::*;
-    use crate::ui::mpv::mpvglarea::MPVGLArea;
 
     #[derive(Debug, Default, CompositeTemplate, glib::Properties)]
-    #[template(resource = "/io/github/mutsumi/ui/mpv_control_sidebar.ui")]
-    #[properties(wrapper_type = super::MPVControlSidebar)]
-    pub struct MPVControlSidebar {
+    #[template(resource = "/io/github/mutsumi/ui/control_sidebar.ui")]
+    #[properties(wrapper_type = super::ControlSidebar)]
+    pub struct ControlSidebar {
         #[property(get, set = Self::set_player, explicit_notify, nullable)]
-        pub player: glib::WeakRef<MPVGLArea>,
+        pub player: glib::WeakRef<MutsumiVideoPlayer>,
 
+        #[property(get, set)]
+        pub show_buffer_speed: Cell<bool>,
+
+        #[template_child]
+        pub playback_speed_adj: TemplateChild<gtk::Adjustment>,
+        #[template_child]
+        pub seek_backward_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
         pub seek_forward_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
-        pub seek_backward_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
         pub buffer_switchrow: TemplateChild<adw::SwitchRow>,
-        #[template_child]
-        pub cache_size_adj: TemplateChild<gtk::Adjustment>,
-        #[template_child]
-        pub cache_time_adj: TemplateChild<gtk::Adjustment>,
 
         #[template_child]
         pub brightness_adj: TemplateChild<gtk::Adjustment>,
@@ -68,6 +61,8 @@ mod imp {
         pub sub_border_size_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
         pub sub_shadow_offset_adj: TemplateChild<gtk::Adjustment>,
+        #[template_child]
+        pub stretch_image_subs_to_screen_switchrow: TemplateChild<adw::SwitchRow>,
 
         #[template_child]
         pub sub_text_color: TemplateChild<gtk::ColorDialogButton>,
@@ -87,12 +82,6 @@ mod imp {
         pub audio_channel_combo: TemplateChild<adw::ComboRow>,
 
         #[template_child]
-        pub video_upsacle_filter_combo: TemplateChild<adw::ComboRow>,
-
-        #[template_child]
-        pub deband_switch: TemplateChild<gtk::Switch>,
-
-        #[template_child]
         pub deband_iterations_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
         pub deband_threshold_adj: TemplateChild<gtk::Adjustment>,
@@ -100,15 +89,12 @@ mod imp {
         pub deband_range_adj: TemplateChild<gtk::Adjustment>,
         #[template_child]
         pub deband_grain_adj: TemplateChild<gtk::Adjustment>,
-
-        #[template_child]
-        pub stretch_image_subs_to_screen_switchrow: TemplateChild<adw::SwitchRow>,
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MPVControlSidebar {
-        const NAME: &'static str = "MPVControlSidebar";
-        type Type = super::MPVControlSidebar;
+    impl ObjectSubclass for ControlSidebar {
+        const NAME: &'static str = "ControlSidebar";
+        type Type = super::ControlSidebar;
         type ParentType = adw::NavigationPage;
 
         fn class_init(klass: &mut Self::Class) {
@@ -122,18 +108,21 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for MPVControlSidebar {
+    impl ObjectImpl for ControlSidebar {
         fn constructed(&self) {
             self.parent_constructed();
-            self.obj().bind_actions();
+
+            let obj = self.obj();
+            obj.set_show_buffer_speed(true);
+            obj.bind_actions();
         }
     }
 
-    impl WidgetImpl for MPVControlSidebar {}
-    impl NavigationPageImpl for MPVControlSidebar {}
+    impl WidgetImpl for ControlSidebar {}
+    impl NavigationPageImpl for ControlSidebar {}
 
-    impl MPVControlSidebar {
-        fn set_player(&self, player: Option<MPVGLArea>) {
+    impl ControlSidebar {
+        fn set_player(&self, player: Option<MutsumiVideoPlayer>) {
             if self.player.upgrade() == player {
                 return;
             }
@@ -143,23 +132,30 @@ mod imp {
 }
 
 glib::wrapper! {
-    pub struct MPVControlSidebar(ObjectSubclass<imp::MPVControlSidebar>)
-        @extends gtk::Widget, gtk::ListBoxRow, adw::NavigationPage, @implements gtk::Accessible;
+    pub struct ControlSidebar(ObjectSubclass<imp::ControlSidebar>)
+        @extends gtk::Widget, adw::NavigationPage,
+        @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
 
-impl Default for MPVControlSidebar {
+impl Default for ControlSidebar {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[template_callbacks]
-impl MPVControlSidebar {
+impl ControlSidebar {
     pub fn new() -> Self {
         glib::Object::new()
     }
 
-    pub fn bind_actions(&self) {
+    fn with_player(&self, f: impl FnOnce(&MutsumiVideoPlayer)) {
+        if let Some(player) = self.player() {
+            f(&player);
+        }
+    }
+
+    fn bind_actions(&self) {
         let action_group = gio::SimpleActionGroup::new();
 
         let action_text = gio::ActionEntry::builder("text-justify")
@@ -174,35 +170,21 @@ impl MPVControlSidebar {
                         .get::<i32>()
                         .expect("The variant needs to be of type `i32`.");
 
-                    match parameter {
-                        0 => obj.set_mpv_property("sub-justify", "left"),
-                        1 => obj.set_mpv_property("sub-justify", "center"),
-                        2 => obj.set_mpv_property("sub-justify", "right"),
-                        _ => {}
-                    }
+                    let justify = match parameter {
+                        0 => "left",
+                        2 => "right",
+                        _ => "center",
+                    };
+                    obj.with_player(|p| p.set_sub_justify(justify));
+
                     action.set_state(&parameter.to_variant());
                 }
             ))
             .build();
 
-        let action_video_end = gio::ActionEntry::builder("video-end")
-            .parameter_type(Some(&i32::static_variant_type()))
-            .state(SETTINGS.mpv_action_after_video_end().to_variant())
-            .activate(move |_, action, parameter| {
-                let parameter = parameter
-                    .expect("Could not get parameter.")
-                    .get::<i32>()
-                    .expect("The variant needs to be of type `i32`.");
-
-                SETTINGS.set_mpv_action_after_video_end(parameter).unwrap();
-
-                action.set_state(&parameter.to_variant());
-            })
-            .build();
-
         let action_hwdec = gio::ActionEntry::builder("hwdec")
             .parameter_type(Some(&i32::static_variant_type()))
-            .state(SETTINGS.mpv_hwdec().to_variant())
+            .state(0.to_variant())
             .activate(glib::clone!(
                 #[weak(rename_to = obj)]
                 self,
@@ -212,240 +194,139 @@ impl MPVControlSidebar {
                         .get::<i32>()
                         .expect("The variant needs to be of type `i32`.");
 
-                    let option = match_hwdec_interop(parameter);
-                    obj.set_mpv_property("hwdec", option);
-
-                    SETTINGS.set_mpv_hwdec(parameter).unwrap();
+                    obj.with_player(|p| p.set_hwdec(match_hwdec_interop(parameter)));
 
                     action.set_state(&parameter.to_variant());
                 }
             ))
             .build();
 
-        action_group.add_action_entries([action_text, action_video_end, action_hwdec]);
-        self.insert_action_group("mpv", Some(&action_group));
-
-        let imp = self.imp();
-
-        SETTINGS
-            .bind(
-                "mpv-seek-backward-step",
-                &imp.seek_backward_adj.get(),
-                "value",
-            )
-            .build();
-        SETTINGS
-            .bind(
-                "mpv-seek-forward-step",
-                &imp.seek_forward_adj.get(),
-                "value",
-            )
-            .build();
-        imp.buffer_switchrow
-            .set_active(SETTINGS.mpv_show_buffer_speed());
-        imp.sub_font_button
-            .set_font_desc(&gtk::pango::FontDescription::from_string(
-                &SETTINGS.mpv_subtitle_font(),
-            ));
-        SETTINGS
-            .bind(
-                "mpv-show-buffer-speed",
-                &imp.buffer_switchrow.get(),
-                "active",
-            )
-            .build();
-        SETTINGS
-            .bind("mpv-cache-size", &imp.cache_size_adj.get(), "value")
-            .build();
-        SETTINGS
-            .bind("mpv-cache-time", &imp.cache_time_adj.get(), "value")
-            .build();
-        SETTINGS
-            .bind("mpv-deband", &imp.deband_switch.get(), "active")
-            .build();
-        SETTINGS
-            .bind(
-                "mpv-audio-channel",
-                &imp.audio_channel_combo.get(),
-                "selected",
-            )
-            .build();
-        SETTINGS
-            .bind("mpv-subtitle-scale", &imp.sub_scale_adj.get(), "value")
-            .build();
-        SETTINGS
-            .bind(
-                "mpv-video-scale",
-                &imp.video_upsacle_filter_combo.get(),
-                "selected",
-            )
-            .build();
+        action_group.add_action_entries([action_text, action_hwdec]);
+        self.insert_action_group("sidebar", Some(&action_group));
     }
 
-    pub fn set_mpv_property<V>(&self, property: &str, value: V)
-    where
-        V: SetData + Send + 'static,
-    {
-        if let Some(player) = self.player() {
-            player.set_property(property, value)
-        }
+    /// Sync the playback speed row without echoing the value back to the
+    /// player (the row callback only fires when the value actually changes).
+    pub fn set_playback_speed(&self, value: f64) {
+        self.imp().playback_speed_adj.set_value(value);
+    }
+
+    pub fn seek_backward_step(&self) -> i64 {
+        self.imp().seek_backward_adj.value() as i64
+    }
+
+    pub fn seek_forward_step(&self) -> i64 {
+        self.imp().seek_forward_adj.value() as i64
     }
 
     #[template_callback]
-    pub fn on_brightness_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("brightness", spin.value());
+    fn on_playback_speed(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_speed(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_contrast_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("contrast", spin.value());
+    fn on_brightness_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_brightness(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_gamma_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("gamma", spin.value());
+    fn on_contrast_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_contrast(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_hue_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("hue", spin.value());
+    fn on_gamma_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_gamma(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_saturation_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("saturation", spin.value());
+    fn on_hue_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_hue(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_sub_position(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+    fn on_saturation_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_saturation(spin.value()));
+    }
+
+    #[template_callback]
+    fn on_sub_position(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
         // Default: 100
-        self.set_mpv_property("sub-pos", spin.value());
+        self.with_player(|p| p.set_sub_pos(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_sub_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-font-size", spin.value());
+    fn on_sub_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_font_size(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_sub_scale(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-scale", spin.value());
+    fn on_sub_scale(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_scale(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_sub_speed(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-speed", spin.value());
+    fn on_sub_speed(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_speed(spin.value()));
     }
 
     #[template_callback]
-    pub fn on_cache_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("demuxer-max-bytes", format!("{}MiB", spin.value()));
+    fn on_sub_bold(&self, button: gtk::ToggleButton) {
+        self.with_player(|p| p.set_sub_bold(button.is_active()));
     }
 
     #[template_callback]
-    pub fn on_cache_time(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("cache-secs", spin.value());
+    fn on_sub_italic(&self, button: gtk::ToggleButton) {
+        self.with_player(|p| p.set_sub_italic(button.is_active()));
     }
 
     #[template_callback]
-    pub fn on_buffer_speed(&self, _param: glib::ParamSpec, switch: adw::SwitchRow) {
-        SETTINGS
-            .set_mpv_show_buffer_speed(switch.is_active())
-            .unwrap();
+    fn on_sub_font(&self, _param: glib::ParamSpec, button: gtk::FontDialogButton) {
+        let Some(font_desc) = button.font_desc() else {
+            return;
+        };
+        self.with_player(|p| p.set_sub_font(&font_desc.to_string()));
     }
 
     #[template_callback]
-    pub fn on_border_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-border-size", spin.value());
-    }
-
-    #[template_callback]
-    fn on_video_deband(&self, _param: glib::ParamSpec, switch: gtk::Switch) {
-        self.set_mpv_property("deband", switch.is_active());
-    }
-
-    #[template_callback]
-    pub fn on_sub_bold(&self, button: gtk::ToggleButton) {
-        self.set_mpv_property("sub-bold", button.is_active());
-    }
-
-    #[template_callback]
-    pub fn on_sub_italic(&self, button: gtk::ToggleButton) {
-        self.set_mpv_property("sub-italic", button.is_active());
-    }
-
-    #[template_callback]
-    pub fn on_stretch_image_subs_to_screen(&self, _param: glib::ParamSpec, switch: adw::SwitchRow) {
-        self.set_mpv_property("stretch-image-subs-to-screen", switch.is_active());
-    }
-
-    #[template_callback]
-    pub fn on_sub_font(&self, _param: glib::ParamSpec, button: gtk::FontDialogButton) {
-        let font_desc = button.font_desc().unwrap();
-        SETTINGS
-            .set_mpv_subtitle_font(font_desc.to_string())
-            .unwrap();
-        self.set_mpv_property("sub-font", font_desc.to_string());
-    }
-
-    #[template_callback]
-    pub fn on_sub_text_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
-        let rgba = color.rgba();
-        self.set_mpv_property(
-            "sub-color",
-            rgba_to_mpv_color((rgba.red(), rgba.green(), rgba.blue(), rgba.alpha())),
-        );
-    }
-
-    #[template_callback]
-    pub fn on_sub_border_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
-        let rgba = color.rgba();
-        self.set_mpv_property(
-            "sub-border-color",
-            rgba_to_mpv_color((rgba.red(), rgba.green(), rgba.blue(), rgba.alpha())),
-        );
-    }
-
-    #[template_callback]
-    pub fn on_sub_background_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
-        let rgba = color.rgba();
-        self.set_mpv_property(
-            "sub-back-color",
-            rgba_to_mpv_color((rgba.red(), rgba.green(), rgba.blue(), rgba.alpha())),
-        );
-    }
-
-    #[template_callback]
-    pub fn on_shadow_offset(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-shadow-offset", spin.value());
-    }
-
-    #[template_callback]
-    pub fn on_sub_offset(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("sub-delay", spin.value() / 1000.0);
-    }
-
-    #[template_callback]
-    pub fn on_border_style(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
+    fn on_border_style(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
         let border_style = match_sub_border_style(combo.selected() as i32);
-        self.set_mpv_property("sub-border-style", border_style);
+        self.with_player(|p| p.set_sub_border_style(border_style));
     }
 
     #[template_callback]
-    fn on_video_filter_clear(&self, _button: gtk::Button) {
-        let imp = self.imp();
-        imp.brightness_adj.set_value(0.0);
-        imp.contrast_adj.set_value(0.0);
-        imp.gamma_adj.set_value(0.0);
-        imp.hue_adj.set_value(0.0);
-        imp.saturation_adj.set_value(0.0);
-
-        self.toast(gettext("Video filter settings cleared."));
+    fn on_border_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_border_size(spin.value()));
     }
 
     #[template_callback]
-    fn on_video_deinterlace(&self, _param: glib::ParamSpec, switch: adw::SwitchRow) {
-        self.set_mpv_property("deinterlace", switch.is_active());
+    fn on_shadow_offset(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_shadow_offset(spin.value()));
+    }
+
+    #[template_callback]
+    fn on_stretch_image_subs_to_screen(&self, _param: glib::ParamSpec, switch: adw::SwitchRow) {
+        self.with_player(|p| p.set_stretch_image_subs_to_screen(switch.is_active()));
+    }
+
+    #[template_callback]
+    fn on_sub_text_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
+        self.with_player(|p| p.set_sub_color(&rgba_to_mpv_color(color.rgba())));
+    }
+
+    #[template_callback]
+    fn on_sub_border_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
+        self.with_player(|p| p.set_sub_border_color(&rgba_to_mpv_color(color.rgba())));
+    }
+
+    #[template_callback]
+    fn on_sub_background_color(&self, _param: glib::ParamSpec, color: gtk::ColorDialogButton) {
+        self.with_player(|p| p.set_sub_back_color(&rgba_to_mpv_color(color.rgba())));
+    }
+
+    #[template_callback]
+    fn on_sub_offset(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_sub_delay(spin.value() / 1000.0));
     }
 
     #[template_callback]
@@ -463,7 +344,7 @@ impl MPVControlSidebar {
         imp.sub_shadow_offset_adj.set_value(0.0);
         imp.stretch_image_subs_to_screen_switchrow.set_active(false);
 
-        self.toast(gettext("Subtitle settings cleared."));
+        self.toast("Subtitle settings cleared.");
     }
 
     #[template_callback]
@@ -476,47 +357,94 @@ impl MPVControlSidebar {
         imp.sub_background_color
             .set_rgba(&gtk::gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
 
-        self.toast(gettext("Subtitle color settings cleared."));
+        self.toast("Subtitle color settings cleared.");
     }
 
     #[template_callback]
     fn on_sub_offset_clear(&self, _button: gtk::Button) {
         let imp = self.imp();
         imp.sub_offset_adj.set_value(0.0);
-        imp.sub_speed_adj.set_value(0.0);
+        imp.sub_speed_adj.set_value(1.0);
 
-        self.toast(gettext("Subtitle offset settings cleared."));
+        self.toast("Subtitle offset settings cleared.");
     }
 
     #[template_callback]
     fn on_audio_offset(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("audio-delay", spin.value() / 1000.0);
+        self.with_player(|p| p.set_audio_delay(spin.value() / 1000.0));
+    }
+
+    #[template_callback]
+    fn on_audio_channel(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
+        let selected = combo.selected();
+
+        if selected == 4 {
+            self.with_player(|p| p.set_audio_pan("pan=[stereo|c0=c1|c1=c0]"));
+            return;
+        }
+
+        let channel = match_audio_channels(selected as i32);
+
+        self.with_player(|p| {
+            p.clear_audio_pan();
+            p.set_audio_channels(channel);
+        });
+    }
+
+    #[template_callback]
+    fn on_audio_clear(&self, _button: gtk::Button) {
+        let imp = self.imp();
+        imp.audio_offset_adj.set_value(0.0);
+        imp.audio_channel_combo.set_selected(0);
+
+        self.toast("Audio settings cleared.");
+    }
+
+    #[template_callback]
+    fn on_video_aspect(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
+        let panscan = match combo.selected() {
+            1 => 1.0,
+            _ => 0.0,
+        };
+
+        self.with_player(|p| p.set_panscan(panscan));
+    }
+
+    #[template_callback]
+    fn on_video_filter_clear(&self, _button: gtk::Button) {
+        let imp = self.imp();
+        imp.brightness_adj.set_value(0.0);
+        imp.contrast_adj.set_value(0.0);
+        imp.gamma_adj.set_value(0.0);
+        imp.hue_adj.set_value(0.0);
+        imp.saturation_adj.set_value(0.0);
+
+        self.toast("Video filter settings cleared.");
+    }
+
+    #[template_callback]
+    fn on_video_deband(&self, _param: glib::ParamSpec, switch: gtk::Switch) {
+        self.with_player(|p| p.set_deband(switch.is_active()));
     }
 
     #[template_callback]
     fn on_deband_iterations_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("deband-iterations", spin.value() as i64);
+        self.with_player(|p| p.set_deband_iterations(spin.value() as i64));
     }
 
     #[template_callback]
     fn on_deband_threshold_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("deband-threshold", spin.value() as i64);
+        self.with_player(|p| p.set_deband_threshold(spin.value() as i64));
     }
 
     #[template_callback]
     fn on_deband_range_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("deband-range", spin.value() as i64);
+        self.with_player(|p| p.set_deband_range(spin.value() as i64));
     }
 
     #[template_callback]
     fn on_deband_grain_spinrow(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
-        self.set_mpv_property("deband-grain", spin.value() as i64);
-    }
-
-    #[template_callback]
-    fn on_video_upscale(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
-        let upscaler = match_video_upscale(combo.selected() as i32);
-        self.set_mpv_property("scale", upscaler);
+        self.with_player(|p| p.set_deband_grain(spin.value() as i64));
     }
 
     #[template_callback]
@@ -527,44 +455,39 @@ impl MPVControlSidebar {
         imp.deband_range_adj.set_value(16.0);
         imp.deband_grain_adj.set_value(32.0);
 
-        self.toast(gettext("Deband settings cleared."));
+        self.toast("Deband settings cleared.");
     }
 
     #[template_callback]
-    fn on_audio_channel(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
-        let selected = combo.selected();
-
-        if selected == 4 {
-            self.set_mpv_property("af", "pan=[stereo|c0=c1|c1=c0]");
-            return;
-        }
-
-        let channel = match_audio_channels(selected as i32);
-
-        self.set_mpv_property("af", "");
-        self.set_mpv_property("audio-channels", channel);
+    fn on_video_deinterlace(&self, _param: glib::ParamSpec, switch: adw::SwitchRow) {
+        self.with_player(|p| p.set_deinterlace(switch.is_active()));
     }
 
     #[template_callback]
-    fn on_video_aspect(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
-        let panscan = match combo.selected() {
-            1 => 1.0,
-            _ => 0.0,
-        };
-
-        self.set_mpv_property("panscan", panscan);
+    fn on_video_upscale(&self, _param: glib::ParamSpec, combo: adw::ComboRow) {
+        let upscaler = match_video_upscale(combo.selected() as i32);
+        self.with_player(|p| p.set_scale(upscaler));
     }
 
     #[template_callback]
-    pub fn on_audio_clear(&self, _button: gtk::Button) {
-        let imp = self.imp();
-        imp.audio_offset_adj.set_value(0.0);
-        imp.audio_channel_combo.set_selected(1);
+    fn on_cache_size(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_demuxer_max_bytes(&format!("{}MiB", spin.value())));
+    }
+
+    #[template_callback]
+    fn on_cache_time(&self, _param: glib::ParamSpec, spin: adw::SpinRow) {
+        self.with_player(|p| p.set_cache_secs(spin.value()));
     }
 }
 
-fn rgba_to_mpv_color(rgba: (f32, f32, f32, f32)) -> String {
-    format!("{}/{}/{}/{}", rgba.0, rgba.1, rgba.2, rgba.3)
+fn rgba_to_mpv_color(rgba: gtk::gdk::RGBA) -> String {
+    format!(
+        "{}/{}/{}/{}",
+        rgba.red(),
+        rgba.green(),
+        rgba.blue(),
+        rgba.alpha()
+    )
 }
 
 pub fn match_video_upscale<'a>(matcher: i32) -> &'a str {
@@ -600,7 +523,6 @@ pub fn match_sub_border_style<'a>(matcher: i32) -> &'a str {
 
 pub fn match_hwdec_interop<'a>(matcher: i32) -> &'a str {
     match matcher {
-        0 => "no",
         1 => "auto-safe",
         2 => "vaapi",
         _ => "no",

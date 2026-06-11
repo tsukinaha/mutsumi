@@ -1,5 +1,5 @@
 use adw::subclass::prelude::*;
-use gtk::{CompositeTemplate, glib};
+use gtk::{CompositeTemplate, glib, prelude::*};
 
 mod imp {
 
@@ -29,11 +29,7 @@ mod imp {
         }
     }
 
-    impl ObjectImpl for MenuActions {
-        fn constructed(&self) {
-            self.parent_constructed();
-        }
-    }
+    impl ObjectImpl for MenuActions {}
 
     impl WidgetImpl for MenuActions {}
 
@@ -41,7 +37,7 @@ mod imp {
 }
 
 glib::wrapper! {
-    /// A widget displaying a `MenuActions`.
+    /// The play / pause / seek button row embedded in the context menu.
     pub struct MenuActions(ObjectSubclass<imp::MenuActions>)
         @extends gtk::Widget, adw::Bin, @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget;
 }
@@ -49,6 +45,17 @@ glib::wrapper! {
 impl MenuActions {
     pub fn new() -> Self {
         glib::Object::new()
+    }
+
+    pub fn set_paused(&self, paused: bool) {
+        let button = self.imp().play_pause_button.get();
+        if paused {
+            button.set_icon_name("media-playback-start-symbolic");
+            button.set_tooltip_text(Some("Play"));
+        } else {
+            button.set_icon_name("media-playback-pause-symbolic");
+            button.set_tooltip_text(Some("Pause"));
+        }
     }
 }
 
