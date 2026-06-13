@@ -1611,6 +1611,7 @@ dependencies = [
 [[package]]
 name = "tsutils"
 version = "0.1.0"
+source = "git+https://github.com/tsukinaha/tsutils.git#a898cf0be8c78300cc9012ff375acb5bb3210315"
 dependencies = [
  "glib",
  "tokio",
