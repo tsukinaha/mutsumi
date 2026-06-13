@@ -24,7 +24,11 @@ template $PlayerPage: Adw.Bin {
             max-sidebar-width: 400;
             min-sidebar-width: 320;
 
-            sidebar: $ControlSidebar control_sidebar {};
+            sidebar: $ControlSidebar control_sidebar {
+                styles [
+                    "osd",
+                ]
+            };
 
             content: Overlay {
                 $MutsumiVideoPlayer video {

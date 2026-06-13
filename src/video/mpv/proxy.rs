@@ -646,7 +646,7 @@ impl XdgSurfaceHandler for XdgSurfaceHandlerImpl {
             state: Rc::clone(&self.state),
         });
 
-        id.send_configure_bounds(1, 1);
+        id.send_configure_bounds(0, 0);
 
         let mut state = self.state.borrow_mut();
         let serial = state.configure_serial;

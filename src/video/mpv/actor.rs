@@ -107,6 +107,7 @@ impl Deref for SendMpv {
 impl Default for MpvActor {
     fn default() -> Self {
         Self::with_initializer(|mpv| {
+            _ = mpv.set_option("input-default-bindings", "yes");
             _ = mpv.set_property("hwdec", "auto-safe");
             _ = mpv.set_property("keep-open", "yes");
             Ok(())
@@ -123,11 +124,6 @@ impl MpvActor {
         let mpv = Mpv::with_initializer(initializer)?;
 
         mpv.disable_deprecated_events()?;
-
-        let log_level = CString::new("v").unwrap();
-        unsafe {
-            libmpv2_sys::mpv_request_log_messages(mpv.ctx.as_ptr(), log_level.as_ptr());
-        }
 
         mpv.observe_property("duration", Format::Double, 0)?;
         mpv.observe_property("pause", Format::Flag, 1)?;
@@ -310,13 +306,6 @@ impl SendMpv {
                 Event::Shutdown => {
                     let _ = MPV_EVENT_CHANNEL.tx.send(ListenEvent::Shutdown);
                     return false;
-                }
-                Event::LogMessage { prefix, level, text, .. } => {
-                    match level {
-                        "warn" => tracing::warn!("mpv: {}: {}", prefix, text),
-                        "error" => tracing::error!("mpv: {}: {}", prefix, text),
-                        _ => tracing::info!("mpv: {}: {}", prefix, text),
-                    }
                 }
                 _ => {}
             },

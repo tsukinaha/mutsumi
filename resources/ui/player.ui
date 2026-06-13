@@ -31,7 +31,11 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
             <property name="max-sidebar-width">400</property>
             <property name="min-sidebar-width">320</property>
             <property name="sidebar">
-              <object class="ControlSidebar" id="control_sidebar"></object>
+              <object class="ControlSidebar" id="control_sidebar">
+                <style>
+                  <class name="osd"/>
+                </style>
+              </object>
             </property>
             <property name="content">
               <object class="GtkOverlay">
