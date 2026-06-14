@@ -823,14 +823,6 @@ pub fn create_mpv_proxy(format_pairs: Vec<(u32, u64)>) -> Option<OwnedFd> {
     let upstream = std::env::var("WAYLAND_DISPLAY").ok()?;
     let (client, server) = std::os::unix::net::UnixStream::pair().ok()?;
 
-    for pair in &format_pairs {
-        tracing::info!(
-            "wl-proxy-mpv: allowing format {} with modifier {:#x}",
-            pair.0,
-            pair.1
-        );
-    }
-
     ALLOWED_FORMAT_PAIRS
         .set(format_pairs.into_iter().collect())
         .ok()?;

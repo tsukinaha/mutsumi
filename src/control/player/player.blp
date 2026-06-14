@@ -24,7 +24,42 @@ template $MutsumiPlayer: Adw.Bin {
             max-sidebar-width: 400;
             min-sidebar-width: 320;
 
-            sidebar: $ControlSidebar control_sidebar {
+            sidebar: Adw.ToolbarView {
+                [top]
+                Adw.HeaderBar {
+                    show-end-title-buttons: false;
+                    title-widget: Adw.ViewSwitcher {
+                        policy: wide;
+                        stack: sidebar_stack;
+                    };
+                }
+                content: Adw.ViewStack sidebar_stack {
+                    Adw.ViewStackPage {
+                        name: "playlist";
+                        title: _("Playlist");
+                        icon-name: "view-list-bullet-symbolic";
+                        child: Adw.Bin {
+
+                        };
+                    }
+                    Adw.ViewStackPage {
+                        name: "settings";
+                        title: _("Settings");
+                        icon-name: "settings-symbolic";
+                        child: $ControlSidebar control_sidebar {
+
+                        };
+                    }
+                    Adw.ViewStackPage {
+                        name: "comments";
+                        title: _("Comments");
+                        icon-name: "card-bulleted-symbolic";
+                        child: Adw.Bin {
+
+                        };
+                    }
+                };
+
                 styles [
                     "osd",
                 ]
@@ -324,6 +359,7 @@ template $MutsumiPlayer: Adw.Bin {
                                         styles [
                                             "flat",
                                             "circular",
+                                            "osd",
                                         ]
                                     }
 
@@ -336,6 +372,7 @@ template $MutsumiPlayer: Adw.Bin {
                                         styles [
                                             "flat",
                                             "circular",
+                                            "osd",
                                         ]
                                     }
 
@@ -348,6 +385,20 @@ template $MutsumiPlayer: Adw.Bin {
                                         styles [
                                             "flat",
                                             "circular",
+                                            "osd",
+                                        ]
+                                    }
+
+                                    MenuButton danmaku_button {
+                                        popover: danmaku_popover;
+                                        icon-name: "card-bulleted-symbolic";
+                                        tooltip-text: _("Danmaku Options");
+                                        valign: center;
+
+                                        styles [
+                                            "flat",
+                                            "circular",
+                                            "osd",
                                         ]
                                     }
 
@@ -448,13 +499,37 @@ template $MutsumiPlayer: Adw.Bin {
                     }
                 }
             };
+        }
+    }
+}
+
+Popover danmaku_popover {
+    height-request: 300;
+    width-request: 320;
+    position: top;
+    has-arrow: true;
+
+    ScrolledWindow {
+        ListBox {
+            selection-mode: none;
+            valign: start;
+
+            Adw.ActionRow {
+                title: _("Enable Danmaku");
+                activatable-widget: danmaku_switch;
+
+                Switch danmaku_switch {
+                    valign: center;
+                }
+            }
 
             styles [
-                "osd",
+                "boxed-list-separate",
             ]
         }
     }
 }
+
 
 Popover subtitle_tracks_popover {
     height-request: 300;
