@@ -3,7 +3,9 @@ use glib::spawn_future_local;
 use gtk::{Builder, CompositeTemplate, PopoverMenu, gdk::Rectangle, gio, glib};
 
 use crate::{
-    ChapterList, DanmakuTrack, ListenEvent, MPV_EVENT_CHANNEL, MpvActor, MpvTrack, MpvTracks, MutsumiVideoPlayer, PlayParams, TrackKind, TrackSelection, control::{ControlSidebar, GlobalToast, MenuActions, VideoScale, VolumeBar, format_duration}
+    ChapterList, DanmakuTrack, ListenEvent, MPV_EVENT_CHANNEL, MpvActor, MpvTrack, MpvTracks,
+    MutsumiVideoPlayer, PlayParams, TrackKind, TrackSelection,
+    control::{ControlSidebar, GlobalToast, MenuActions, VideoScale, VolumeBar, format_duration},
 };
 
 /// Minimum interval between two pointer motion events that reveal the
@@ -195,7 +197,11 @@ mod imp {
             }
             self.menu_actions.set_paused(paused);
             self.paused.set(paused);
-            self.danmakw.set_paused(paused);
+
+            // seeking
+            if !self.loading_box.is_visible() {
+                self.danmakw.set_paused(paused);
+            }
         }
     }
 }
@@ -224,7 +230,7 @@ impl MutsumiPlayer {
         self.imp().video.get()
     }
 
-    pub fn mpv(&self) -> MpvActor{
+    pub fn mpv(&self) -> MpvActor {
         self.imp().video.get().backend_ref().mpv().mpv
     }
 
@@ -345,6 +351,11 @@ impl MutsumiPlayer {
     fn update_seeking(&self, seeking: bool) {
         self.imp().loading_box.set_visible(seeking);
 
+        if self.paused() {
+            self.queue_draw();
+            return;
+        }
+
         self.imp().danmakw.set_paused(seeking);
     }
 
@@ -389,14 +400,19 @@ impl MutsumiPlayer {
     }
 
     fn show_shortcuts_dialog(&self) {
-        let dialog = self.imp().shortcuts_dialog.get_or_init(|| self.create_shortcuts_dialog());
+        let dialog = self
+            .imp()
+            .shortcuts_dialog
+            .get_or_init(|| self.create_shortcuts_dialog());
 
         dialog.present(Some(self));
     }
 
     fn create_shortcuts_dialog(&self) -> adw::ShortcutsDialog {
         let builder = Builder::from_resource("/io/github/mutsumi/ui/shortcuts.ui");
-        builder.object::<adw::ShortcutsDialog>("shortcuts_dialog").expect("Failed to load shortcuts dialog")
+        builder
+            .object::<adw::ShortcutsDialog>("shortcuts_dialog")
+            .expect("Failed to load shortcuts dialog")
     }
 
     fn on_time_pos(&self, value: i64) {
@@ -418,7 +434,11 @@ impl MutsumiPlayer {
             TrackKind::Audio,
         );
 
-        self.bind_tracks(value.sub_tracks, &imp.sub_listbox.get(), TrackKind::Subtitle);
+        self.bind_tracks(
+            value.sub_tracks,
+            &imp.sub_listbox.get(),
+            TrackKind::Subtitle,
+        );
 
         if let Some(danmaku_track) = value.danmaku_track {
             self.bind_danmaku(danmaku_track);
@@ -464,8 +484,13 @@ impl MutsumiPlayer {
     }
 
     fn append_track_row(
-        &self, listbox: &gtk::ListBox, title: &str, subtitle: &str, active: bool,
-        group: Option<&gtk::CheckButton>, on_activated: impl Fn() + 'static,
+        &self,
+        listbox: &gtk::ListBox,
+        title: &str,
+        subtitle: &str,
+        active: bool,
+        group: Option<&gtk::CheckButton>,
+        on_activated: impl Fn() + 'static,
     ) -> gtk::CheckButton {
         let check = gtk::CheckButton::builder()
             .valign(gtk::Align::Center)
@@ -620,12 +645,14 @@ impl MutsumiPlayer {
 
     fn on_backward(&self) {
         let imp = self.imp();
-        imp.video.seek_backward(imp.control_sidebar.seek_backward_step());
+        imp.video
+            .seek_backward(imp.control_sidebar.seek_backward_step());
     }
 
     fn on_forward(&self) {
         let imp = self.imp();
-        imp.video.seek_forward(imp.control_sidebar.seek_forward_step());
+        imp.video
+            .seek_forward(imp.control_sidebar.seek_forward_step());
     }
 
     fn chapter_prev(&self) {
@@ -719,7 +746,6 @@ impl MutsumiPlayer {
                             return;
                         };
                         obj.imp().danmakw.load_danmaku(danmaku);
-                        obj.imp().danmakw.start_rendering();
                     }
                     Err(e) => {
                         tracing::error!("Failed to load danmaku from {}: {}", external_url, e);

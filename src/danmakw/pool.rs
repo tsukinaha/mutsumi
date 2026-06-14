@@ -102,11 +102,11 @@ impl Danmakw {
     }
 
     pub fn load_danmaku(&self, danmaku: Vec<Danmaku>) {
-        self.imp()
+        let mut renderer = self.imp()
             .renderer
-            .borrow_mut()
-            .danmaku_queue
-            .init(danmaku, 0.0);
+            .borrow_mut();
+        renderer.danmaku_queue.init(danmaku, 0.0);
+        renderer.clear_danmaku();
     }
 
     pub fn start_rendering(&self) {
@@ -132,8 +132,9 @@ impl Danmakw {
     pub fn set_paused(&self, paused: bool) {
         if paused {
             self.pause_clock();
+            self.stop_rendering();
         } else {
-            self.start_clock();
+            self.start_rendering();
         }
     }
 
@@ -163,8 +164,6 @@ impl Danmakw {
         let Some(clock) = clock.as_ref() else {
             return glib::ControlFlow::Continue;
         };
-
-        tracing::info!("clock ms {}", clock.time_milis());
 
         imp.renderer
             .borrow_mut()

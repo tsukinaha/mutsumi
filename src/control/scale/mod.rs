@@ -97,7 +97,6 @@ use super::*;
                 return;
             };
 
-            tracing::info!("preroll {}", value * 1000.0);
             danmakw.preroll_seek(value * 1000.0);
         }
     }

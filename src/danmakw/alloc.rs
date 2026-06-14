@@ -322,6 +322,14 @@ impl DanmakwRenderer {
         }
     }
 
+    pub fn clear_danmaku(&mut self) {
+        self.scroll_danmaku.clear();
+        self.top_center_danmaku.clear();
+        self.bottom_center_danmaku.clear();
+        self.top_center_row_occupied.fill(false);
+        self.bottom_center_row_occupied.fill(false);
+    }
+
     pub fn scrolled_top_y(&self, row: usize) -> f32 {
         self.top_padding + row as f32 * self.line_height
     }
