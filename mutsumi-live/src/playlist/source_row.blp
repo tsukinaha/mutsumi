@@ -1,0 +1,17 @@
+using Gtk 4.0;
+using Adw 1;
+
+template $SourceActionRow: Adw.ActionRow {
+    activatable: true;
+    [suffix]
+    Gtk.Button {
+        icon-name: "user-trash-symbolic";
+        valign: center;
+        clicked => $on_delete_clicked() swapped;
+
+        styles [
+            "flat",
+            "circular",
+        ]
+    }
+}

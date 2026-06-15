@@ -43,13 +43,13 @@ template $MutsumiPlayer: Adw.Bin {
                         child: $ControlSidebar control_sidebar {};
                     }
 
-                    Adw.ViewStackPage playlist_page {
+                    Adw.ViewStackPage playlist_stack_page {
                         visible: false;
                         name: "playlist";
                         title: _("Playlist");
                         icon-name: "view-list-bullet-symbolic";
 
-                        child: Adw.Bin {};
+                        child: Adw.Bin playlist_page {};
                     }
                 };
 
@@ -396,9 +396,9 @@ template $MutsumiPlayer: Adw.Bin {
                                     }
 
                                     Button {
-                                        icon-name: "settings-symbolic";
+                                        icon-name: "dock-right-symbolic";
                                         action-name: "player.show-settings";
-                                        tooltip-text: _("Advanced settings");
+                                        tooltip-text: _("Sidebar");
                                         valign: center;
 
                                         styles [
