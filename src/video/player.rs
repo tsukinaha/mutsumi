@@ -1,5 +1,5 @@
 use glib::Object;
-use gtk::{gdk::ModifierType, glib, prelude::*, subclass::prelude::*};
+use gtk::{gdk::ModifierType, glib, subclass::prelude::*};
 
 use crate::{MutsumiVideoSink, PlayParams};
 

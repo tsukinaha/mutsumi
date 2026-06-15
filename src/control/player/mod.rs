@@ -76,6 +76,9 @@ mod imp {
         pub audio_listbox: TemplateChild<gtk::ListBox>,
 
         #[template_child]
+        pub playlist_page: TemplateChild<adw::ViewStackPage>,
+
+        #[template_child]
         pub danmakw: TemplateChild<crate::Danmakw>,
 
         pub menu_actions: MenuActions,
@@ -758,6 +761,10 @@ impl MutsumiPlayer {
                 }
             }
         ));
+    }
+
+    pub fn playlist_page(&self) -> adw::ViewStackPage {
+        self.imp().playlist_page.get()
     }
 }
 

@@ -16,7 +16,6 @@ template $MutsumiPlayer: Adw.Bin {
     }
 
     Adw.ToastOverlay {
-
         Adw.OverlaySplitView split_view {
             sidebar-position: end;
             show-sidebar: false;
@@ -28,35 +27,29 @@ template $MutsumiPlayer: Adw.Bin {
                 [top]
                 Adw.HeaderBar {
                     show-end-title-buttons: false;
+
                     title-widget: Adw.ViewSwitcher {
                         policy: wide;
                         stack: sidebar_stack;
                     };
                 }
-                content: Adw.ViewStack sidebar_stack {
-                    Adw.ViewStackPage {
-                        name: "playlist";
-                        title: _("Playlist");
-                        icon-name: "view-list-bullet-symbolic";
-                        child: Adw.Bin {
 
-                        };
-                    }
+                content: Adw.ViewStack sidebar_stack {
                     Adw.ViewStackPage {
                         name: "settings";
                         title: _("Settings");
                         icon-name: "settings-symbolic";
-                        child: $ControlSidebar control_sidebar {
 
-                        };
+                        child: $ControlSidebar control_sidebar {};
                     }
-                    Adw.ViewStackPage {
-                        name: "comments";
-                        title: _("Comments");
-                        icon-name: "card-bulleted-symbolic";
-                        child: Adw.Bin {
 
-                        };
+                    Adw.ViewStackPage playlist_page {
+                        visible: false;
+                        name: "playlist";
+                        title: _("Playlist");
+                        icon-name: "view-list-bullet-symbolic";
+
+                        child: Adw.Bin {};
                     }
                 };
 
@@ -529,7 +522,6 @@ Popover danmaku_popover {
         }
     }
 }
-
 
 Popover subtitle_tracks_popover {
     height-request: 300;

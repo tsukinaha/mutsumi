@@ -47,16 +47,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                   <object class="AdwViewStack" id="sidebar_stack">
                     <child>
                       <object class="AdwViewStackPage">
-                        <property name="name">playlist</property>
-                        <property name="title" translatable="yes">Playlist</property>
-                        <property name="icon-name">view-list-bullet-symbolic</property>
-                        <property name="child">
-                          <object class="AdwBin"></object>
-                        </property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="AdwViewStackPage">
                         <property name="name">settings</property>
                         <property name="title" translatable="yes">Settings</property>
                         <property name="icon-name">settings-symbolic</property>
@@ -66,10 +56,11 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                       </object>
                     </child>
                     <child>
-                      <object class="AdwViewStackPage">
-                        <property name="name">comments</property>
-                        <property name="title" translatable="yes">Comments</property>
-                        <property name="icon-name">card-bulleted-symbolic</property>
+                      <object class="AdwViewStackPage" id="playlist_page">
+                        <property name="visible">false</property>
+                        <property name="name">playlist</property>
+                        <property name="title" translatable="yes">Playlist</property>
+                        <property name="icon-name">view-list-bullet-symbolic</property>
                         <property name="child">
                           <object class="AdwBin"></object>
                         </property>
