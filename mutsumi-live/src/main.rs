@@ -6,6 +6,8 @@ fn main() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
+    mutsumi::force_gl_renderer();
+
     let app = adw::Application::builder()
         .application_id("io.github.mutsumi-live.example.player")
         .build();

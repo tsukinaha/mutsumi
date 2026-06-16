@@ -9,6 +9,8 @@ fn main() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
+    mutsumi::force_gl_renderer();
+
     gtk::init().expect("Failed to initialize GTK");
 
     let player = MutsumiVideoPlayer::new();

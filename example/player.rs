@@ -8,6 +8,8 @@ fn main() {
         .with_max_level(tracing::Level::INFO)
         .init();
 
+    mutsumi::force_gl_renderer();
+
     let url = std::env::args()
         .nth(1)
         .unwrap_or_else(|| DEFAULT_URL.to_string());
