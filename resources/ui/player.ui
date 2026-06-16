@@ -76,7 +76,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
               </object>
             </property>
             <property name="content">
-              <object class="GtkOverlay">
+              <object class="GtkOverlay" id="overlay">
                 <child>
                   <object class="MutsumiVideoPlayer" id="video">
                     <property name="hexpand">true</property>

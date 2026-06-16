@@ -84,6 +84,9 @@ mod imp {
         pub playlist_stack_page: TemplateChild<adw::ViewStackPage>,
 
         #[template_child]
+        pub overlay: TemplateChild<gtk::Overlay>,
+
+        #[template_child]
         pub danmakw: TemplateChild<crate::Danmakw>,
 
         pub menu_actions: MenuActions,
@@ -245,6 +248,10 @@ impl MutsumiPlayer {
 
     pub fn mpv(&self) -> MpvActor {
         self.imp().video.get().backend_ref().mpv().mpv
+    }
+
+    pub fn overlay(&self) -> gtk::Overlay {
+        self.imp().overlay.get()
     }
 
     pub fn play(&self, params: &PlayParams) {

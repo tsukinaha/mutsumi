@@ -54,6 +54,7 @@ mod imp {
                 "ytdl-raw-options",
                 "cookies-from-browser=firefox".to_string(),
             );
+            // self.player.overlay().add_overlay();
 
             let obj = self.obj();
             playlist.connect_play_requested(glib::clone!(
