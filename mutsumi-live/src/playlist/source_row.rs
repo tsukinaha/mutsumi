@@ -39,21 +39,23 @@ mod imp {
             self.live_status.set(status);
 
             match status {
-                LiveStatus::Unknown => self.live_stack.set_visible(false),
+                LiveStatus::Unknown => {
+                    self.live_icon.set_css_classes(&[]);
+                    self.live_icon.set_tooltip_text(Some("Unknown"));
+                    self.live_stack.set_visible_child_name("status");
+                }
                 LiveStatus::Loading => {
-                    self.live_stack.set_visible(true);
                     self.live_stack.set_visible_child_name("loading");
                 }
-                LiveStatus::Live | LiveStatus::Offline => {
-                    let is_live = status == LiveStatus::Live;
-                    self.live_icon.set_css_classes(if is_live {
-                        &["success"]
-                    } else {
-                        &["error"]
-                    });
+                LiveStatus::Live => {
+                    self.live_icon.set_css_classes(&["success"]);
+                    self.live_icon.set_tooltip_text(Some("Live"));
+                    self.live_stack.set_visible_child_name("status");
+                }
+                LiveStatus::Offline => {
+                    self.live_icon.set_css_classes(&["error"]);
                     self.live_icon
-                        .set_tooltip_text(Some(if is_live { "Live" } else { "Offline" }));
-                    self.live_stack.set_visible(true);
+                        .set_tooltip_text(Some("Offline"));
                     self.live_stack.set_visible_child_name("status");
                 }
             }
