@@ -3,23 +3,48 @@ using Adw 1;
 
 template $PlayList: Adw.Bin {
     Adw.BottomSheet bottom_sheet {
-        Gtk.ScrolledWindow {
-            vscrollbar-policy: automatic;
-            hscrollbar-policy: never;
+        Gtk.Box {
+            orientation: vertical;
 
             Adw.Clamp {
                 maximum-size: 400;
                 tightening-threshold: 200;
+                margin-top: 12;
 
-                ListBox listbox {
+                ListBox {
                     selection-mode: none;
-                    margin-top: 12;
-                    margin-bottom: 12;
-                    row-activated => $on_row_activated() swapped;
+
+                    Adw.ButtonRow {
+                        title: _("Refresh Live Status");
+                        start-icon-name: "view-refresh-symbolic";
+                        activated => $on_refresh_activated() swapped;
+                    }
 
                     styles [
                         "boxed-list-separate",
                     ]
+                }
+            }
+
+            Gtk.ScrolledWindow {
+                vexpand: true;
+                vscrollbar-policy: automatic;
+                hscrollbar-policy: never;
+
+                Adw.Clamp {
+                    maximum-size: 400;
+                    tightening-threshold: 200;
+
+                    ListBox listbox {
+                        selection-mode: none;
+                        margin-top: 12;
+                        margin-bottom: 12;
+                        row-activated => $on_row_activated() swapped;
+
+                        styles [
+                            "boxed-list-separate",
+                        ]
+                    }
                 }
             }
         }

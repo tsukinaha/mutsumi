@@ -2,8 +2,18 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gtk::{CompositeTemplate, glib};
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum LiveStatus {
+    /// Not a recognized live source; the indicator is hidden.
+    #[default]
+    Unknown,
+    Loading,
+    Live,
+    Offline,
+}
+
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::sync::OnceLock;
 
     use glib::subclass::InitializingObject;
@@ -14,8 +24,40 @@ mod imp {
     #[template(resource = "/io/github/mutsumi-live/ui/source_row.ui")]
     #[properties(wrapper_type = super::SourceActionRow)]
     pub struct SourceActionRow {
+        #[template_child]
+        pub live_stack: TemplateChild<gtk::Stack>,
+        #[template_child]
+        pub live_icon: TemplateChild<gtk::Image>,
+
         #[property(get, set)]
         pub source_url: RefCell<String>,
+        pub live_status: Cell<LiveStatus>,
+    }
+
+    impl SourceActionRow {
+        pub fn set_live_status(&self, status: LiveStatus) {
+            self.live_status.set(status);
+
+            match status {
+                LiveStatus::Unknown => self.live_stack.set_visible(false),
+                LiveStatus::Loading => {
+                    self.live_stack.set_visible(true);
+                    self.live_stack.set_visible_child_name("loading");
+                }
+                LiveStatus::Live | LiveStatus::Offline => {
+                    let is_live = status == LiveStatus::Live;
+                    self.live_icon.set_css_classes(if is_live {
+                        &["success"]
+                    } else {
+                        &["error"]
+                    });
+                    self.live_icon
+                        .set_tooltip_text(Some(if is_live { "Live" } else { "Offline" }));
+                    self.live_stack.set_visible(true);
+                    self.live_stack.set_visible_child_name("status");
+                }
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -78,5 +120,27 @@ impl SourceActionRow {
             false,
             glib::closure_local!(move |obj: Self| f(&obj)),
         )
+    }
+
+    pub fn refresh_live_status(&self) {
+        let Some(room_id) = crate::danmaku::parse_bilibili_live_room_id(&self.source_url())
+        else {
+            self.imp().set_live_status(LiveStatus::Unknown);
+            return;
+        };
+
+        self.imp().set_live_status(LiveStatus::Loading);
+
+        let weak = self.downgrade();
+        glib::spawn_future_local(async move {
+            let status = match crate::danmaku::check_bilibili_live_status(room_id).await {
+                Some(true) => LiveStatus::Live,
+                Some(false) => LiveStatus::Offline,
+                None => LiveStatus::Unknown,
+            };
+            if let Some(row) = weak.upgrade() {
+                row.imp().set_live_status(status);
+            }
+        });
     }
 }

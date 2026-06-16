@@ -107,6 +107,7 @@ mod imp {
         pub fn append_row(&self, entry: &super::SourceEntry) {
             let row = super::SourceActionRow::new(&entry.name, &entry.url);
             self.listbox.append(&row);
+            row.refresh_live_status();
 
             let obj = self.obj();
             row.connect_delete_requested(glib::clone!(
@@ -149,6 +150,17 @@ mod imp {
             self.name_entry.set_text("");
             self.url_entry.set_text("");
             self.bottom_sheet.set_open(false);
+        }
+
+        #[template_callback]
+        fn on_refresh_activated(&self) {
+            let mut child = self.listbox.first_child();
+            while let Some(widget) = child {
+                child = widget.next_sibling();
+                if let Ok(row) = widget.downcast::<super::SourceActionRow>() {
+                    row.refresh_live_status();
+                }
+            }
         }
 
         #[template_callback]

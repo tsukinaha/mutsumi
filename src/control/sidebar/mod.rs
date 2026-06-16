@@ -143,6 +143,8 @@ impl Default for ControlSidebar {
     }
 }
 
+impl GlobalToast for ControlSidebar {}
+
 #[template_callbacks]
 impl ControlSidebar {
     pub fn new() -> Self {

@@ -35,6 +35,9 @@ mod imp {
         pub paused: Cell<bool>,
 
         #[template_child]
+        pub toast_overlay: TemplateChild<adw::ToastOverlay>,
+
+        #[template_child]
         pub split_view: TemplateChild<adw::OverlaySplitView>,
         #[template_child]
         pub control_sidebar: TemplateChild<ControlSidebar>,
@@ -221,6 +224,12 @@ glib::wrapper! {
 impl Default for MutsumiPlayer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl GlobalToast for MutsumiPlayer {
+    fn toast_overlay(&self) -> Option<adw::ToastOverlay> {
+        Some(self.imp().toast_overlay.get())
     }
 }
 

@@ -10,22 +10,50 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <child>
       <object class="AdwBottomSheet" id="bottom_sheet">
         <child>
-          <object class="GtkScrolledWindow">
-            <property name="vscrollbar-policy">1</property>
-            <property name="hscrollbar-policy">2</property>
+          <object class="GtkBox">
+            <property name="orientation">1</property>
             <child>
               <object class="AdwClamp">
                 <property name="maximum-size">400</property>
                 <property name="tightening-threshold">200</property>
+                <property name="margin-top">12</property>
                 <child>
-                  <object class="GtkListBox" id="listbox">
+                  <object class="GtkListBox">
                     <property name="selection-mode">0</property>
-                    <property name="margin-top">12</property>
-                    <property name="margin-bottom">12</property>
-                    <signal name="row-activated" handler="on_row_activated" swapped="True"/>
+                    <child>
+                      <object class="AdwButtonRow">
+                        <property name="title" translatable="yes">Refresh Live Status</property>
+                        <property name="start-icon-name">view-refresh-symbolic</property>
+                        <signal name="activated" handler="on_refresh_activated" swapped="True"/>
+                      </object>
+                    </child>
                     <style>
                       <class name="boxed-list-separate"/>
                     </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="vexpand">true</property>
+                <property name="vscrollbar-policy">1</property>
+                <property name="hscrollbar-policy">2</property>
+                <child>
+                  <object class="AdwClamp">
+                    <property name="maximum-size">400</property>
+                    <property name="tightening-threshold">200</property>
+                    <child>
+                      <object class="GtkListBox" id="listbox">
+                        <property name="selection-mode">0</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <signal name="row-activated" handler="on_row_activated" swapped="True"/>
+                        <style>
+                          <class name="boxed-list-separate"/>
+                        </style>
+                      </object>
+                    </child>
                   </object>
                 </child>
               </object>

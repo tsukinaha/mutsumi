@@ -26,6 +26,17 @@ pub fn parse_bilibili_live_room_id(url: &str) -> Option<u64> {
     path.split(['?', '#', '/']).next()?.parse::<u64>().ok()
 }
 
+pub async fn check_bilibili_live_status(room_id: u64) -> Option<bool> {
+    use gtk::gio;
+    use gtk::prelude::FileExtManual;
+
+    let uri = format!("https://api.live.bilibili.com/room/v1/Room/get_info?id={room_id}");
+    let (contents, _) = gio::File::for_uri(&uri).load_contents_future().await.ok()?;
+    let resp: Value = serde_json::from_slice(&contents).ok()?;
+    let live_status = resp["data"]["live_status"].as_u64()?;
+    Some(live_status == 1)
+}
+
 async fn resolve_real_room_id(
     client: &reqwest::Client,
     room_id: u64,

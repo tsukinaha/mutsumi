@@ -24,7 +24,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
       </object>
     </child>
     <child>
-      <object class="AdwToastOverlay">
+      <object class="AdwToastOverlay" id="toast_overlay">
         <child>
           <object class="AdwOverlaySplitView" id="split_view">
             <property name="sidebar-position">1</property>
