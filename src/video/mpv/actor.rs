@@ -8,7 +8,7 @@ use libmpv2::{
 };
 use once_cell::sync::Lazy;
 use serde_json::Value;
-use tsutils::spawn_tokio_blocking;
+use mutsumi_utils::spawn_tokio_blocking;
 
 struct SendMpv(Arc<Mpv>);
 unsafe impl Send for SendMpv {}

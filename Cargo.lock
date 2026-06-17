@@ -1583,6 +1583,7 @@ dependencies = [
  "libloading 0.9.0",
  "libmpv2",
  "libmpv2-sys",
+ "mutsumi-utils",
  "once_cell",
  "pango",
  "pangocairo",
@@ -1592,7 +1593,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "tsutils",
  "wl-proxy",
 ]
 
@@ -1619,6 +1619,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "mutsumi-utils"
+version = "0.1.0"
+dependencies = [
+ "glib",
+ "tokio",
 ]
 
 [[package]]
@@ -2720,15 +2728,6 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
-
-[[package]]
-name = "tsutils"
-version = "0.1.0"
-source = "git+https://github.com/tsukinaha/tsutils.git#a898cf0be8c78300cc9012ff375acb5bb3210315"
-dependencies = [
- "glib",
- "tokio",
-]
 
 [[package]]
 name = "tungstenite"

@@ -35,7 +35,7 @@ gstreamer-play = "0.25"
 tracing-subscriber = "0.3"
 glow = "0.17"
 thiserror = "2.0.18"
-tsutils = { git = "https://github.com/tsukinaha/tsutils.git", version = "0.1.0" }
+mutsumi-utils = { path = "mutsumi-utils" , version = "0.1.0" }
 libmpv2-sys = "4.0.1"
 pango = "0.22.6"
 pangocairo = "0.22"

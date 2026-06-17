@@ -148,7 +148,7 @@ mod imp {
             self.mpv.mpv.set_property("vo", "gpu-next".to_owned());
         }
 
-        fn throw_error(&self, code: MutsumiMpvError) {
+        pub fn throw_error(&self, code: MutsumiMpvError) {
             self.obj().emit_by_name::<()>("mutsumi-error", &[&code]);
         }
     }
