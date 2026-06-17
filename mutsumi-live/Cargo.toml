@@ -17,13 +17,15 @@ serde_json = "1"
 serde_yaml = "0.9"
 dirs = "5"
 tokio = { version = "1.52", features = ["macros"] }
-reqwest = { version = "0.11", default-features = false, features = ["native-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json", "gzip", "brotli", "deflate", "http2"] }
 async-tungstenite = { version = "0.17", features = ["tokio-native-tls"] }
 flate2 = "1"
 md5 = "0.8.0"
 brotli = "8.0.4"
-rquickjs = "0.6"
+rquickjs = "0.11"
 uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["clock"] }
+rusqlite = "0.32"
 
 [build-dependencies]
 glib-build-tools = "0.22"

@@ -10,6 +10,9 @@ use futures::{SinkExt, StreamExt};
 
 use super::LiveDanmaku;
 
+const UA: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0";
+
 const HEARTBEAT: &[u8] =
     b"\x14\x00\x00\x00\x14\x00\x00\x00\xb1\x02\x00\x00\x74\x79\x70\x65\x40\x3d\x6d\x72\x6b\x6c\x2f\x00";
 
@@ -38,43 +41,96 @@ pub fn parse_douyu_room_id(url: &str) -> Option<String> {
         .or_else(|| url.strip_prefix("https://douyu.com/"))
         .or_else(|| url.strip_prefix("http://douyu.com/"))?;
     let rid = path.split(['?', '#', '/']).next()?;
-    if rid.is_empty() { None } else { Some(rid.to_string()) }
+    if rid.is_empty() {
+        None
+    } else {
+        tracing::info!("douyu: parsed room id {rid:?} from url {url:?}");
+        Some(rid.to_string())
+    }
+}
+
+/// Resolves a Douyu room alias (e.g. "6657") to the numeric room ID (e.g. "6979222").
+/// Douyu room pages embed the real room ID in cover image URLs on douyucdn.cn.
+/// Returns the input unchanged if already a numeric ID or on fetch failure.
+async fn resolve_real_rid(client: &reqwest::Client, rid: &str) -> String {
+    let html = match async {
+        client
+            .get(format!("https://www.douyu.com/{rid}"))
+            .header("User-Agent", UA)
+            .send()
+            .await?
+            .text()
+            .await
+    }
+    .await
+    {
+        Ok(h) => h,
+        Err(_) => return rid.to_string(),
+    };
+    // Cover images: douyucdn.cn/asrpic/{date}/{real_rid}_...
+    html.split("douyucdn.cn/asrpic/")
+        .nth(1)
+        .and_then(|s| s.split('/').nth(1))
+        .and_then(|s| s.split('_').next())
+        .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
+        .map(|real| {
+            if real != rid {
+                tracing::info!("douyu: resolved alias {rid:?} -> {real:?}");
+            }
+            real.to_string()
+        })
+        .unwrap_or_else(|| rid.to_string())
 }
 
 pub async fn check_douyu_live_status(rid: &str) -> Option<bool> {
-    use gtk::gio;
-    use gtk::prelude::FileExtManual;
+    let rid = rid.to_string();
+    let (tx, rx) = flume::bounded(1);
 
-    let uri = format!("https://www.douyu.com/betard/{rid}");
-    let (contents, _) = gio::File::for_uri(&uri).load_contents_future().await.ok()?;
-    let resp: serde_json::Value = serde_json::from_slice(&contents).ok()?;
-    let show_status = resp["room"]["show_status"].as_i64()?;
-    let video_loop = resp["room"]["videoLoop"].as_i64()?;
-    Some(show_status == 1 && video_loop == 0)
+    std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(async move {
+                let result: Option<bool> = async {
+                    let client = reqwest::Client::new();
+                    let rid = resolve_real_rid(&client, &rid).await;
+                    let j = client
+                        .get(format!("https://www.douyu.com/betard/{rid}"))
+                        .header("User-Agent", UA)
+                        .header("Referer", format!("https://www.douyu.com/{rid}"))
+                        .send()
+                        .await
+                        .ok()?
+                        .json::<serde_json::Value>()
+                        .await
+                        .ok()?;
+                    let show_status = j["room"]["show_status"].as_i64()?;
+                    let video_loop = j["room"]["videoLoop"].as_i64()?;
+                    Some(show_status == 1 && video_loop == 0)
+                }
+                .await;
+                let _ = tx.send(result);
+            });
+    });
+
+    rx.recv_async().await.ok().flatten()
 }
 
-/// Resolves the RTMP stream URL for a Douyu room.
-///
-/// Requires `crypto-js.min.js` to be placed alongside this source file.
-/// The JS is bundled at compile time via `include_str!`.
 pub async fn get_douyu_stream_url(
     rid: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     const API2: &str = "https://www.douyu.com/swf_api/homeH5Enc?rids=";
     const API3: &str = "https://www.douyu.com/lapi/live/getH5Play/";
-    const UA: &str = "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0";
 
-    let did = uuid::Uuid::new_v4().simple().to_string();
-
-    // acf_did must match the did passed to the signing function
-    let cookie = format!("acf_did={did}");
     let client = reqwest::Client::new();
+    let rid = resolve_real_rid(&client, rid).await;
+    let rid = rid.as_str();
 
     let resp = client
         .get(format!("{API2}{rid}"))
         .header("User-Agent", UA)
         .header("Referer", format!("https://www.douyu.com/{rid}"))
-        .header("Cookie", &cookie)
         .send()
         .await?
         .json::<serde_json::Value>()
@@ -83,15 +139,12 @@ pub async fn get_douyu_stream_url(
     let js_enc = resp
         .pointer(&format!("/data/room{rid}"))
         .and_then(|x| x.as_str())
-        .ok_or("missing room JS in API2 response")?
+        .ok_or("missing room JS in homeH5Enc response")?
         .to_string();
 
     let crypto_js = include_str!("crypto-js.min.js");
-    let tsec = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-        .to_string();
+    let did = uuid::Uuid::new_v4().simple().to_string();
+    let tsec = format!("{}", chrono::Local::now().timestamp());
 
     let rt = rquickjs::Runtime::new()?;
     let ctx = rquickjs::Context::full(&rt)?;
@@ -101,23 +154,19 @@ pub async fn get_douyu_stream_url(
         ctx.eval::<String, _>(format!("ub98484234('{rid}','{did}','{tsec}')"))
     })?;
 
-    let mut params: Vec<(String, String)> = enc_data
+    let mut params: Vec<(&str, &str)> = enc_data
         .split('&')
-        .filter_map(|kv| {
-            let (k, v) = kv.split_once('=')?;
-            Some((k.to_string(), v.to_string()))
-        })
+        .filter_map(|kv| kv.split_once('='))
         .collect();
-    params.push(("cdn".to_string(), String::new()));
-    params.push(("iar".to_string(), "0".to_string()));
-    params.push(("ive".to_string(), "0".to_string()));
-    params.push(("rate".to_string(), "0".to_string()));
+    params.push(("cdn", ""));
+    params.push(("iar", "0"));
+    params.push(("ive", "0"));
+    params.push(("rate", "0"));
 
     let resp = client
         .post(format!("{API3}{rid}"))
         .header("User-Agent", UA)
         .header("Referer", format!("https://www.douyu.com/{rid}"))
-        .header("Cookie", &cookie)
         .form(&params)
         .send()
         .await?
@@ -127,17 +176,17 @@ pub async fn get_douyu_stream_url(
     let error_code = resp["error"].as_i64().unwrap_or(0);
     if error_code != 0 {
         let msg = resp["msg"].as_str().unwrap_or("unknown error");
-        return Err(format!("douyu API error {error_code}: {msg}").into());
+        return Err(format!("douyu getH5Play error {error_code}: {msg}").into());
     }
 
     let rtmp_url = resp
         .pointer("/data/rtmp_url")
         .and_then(|x| x.as_str())
-        .ok_or("missing rtmp_url in getH5Play response")?;
+        .ok_or("missing rtmp_url")?;
     let rtmp_live = resp
         .pointer("/data/rtmp_live")
         .and_then(|x| x.as_str())
-        .ok_or("missing rtmp_live in getH5Play response")?;
+        .ok_or("missing rtmp_live")?;
 
     Ok(format!("{rtmp_url}/{rtmp_live}"))
 }
@@ -153,10 +202,10 @@ fn build_packet(payload: &str) -> Vec<u8> {
     data
 }
 
-// Douyu binary frame: [4B len_le][len bytes: [4B len_le][4B magic][payload][1B null][1B sep]]
-// payload = msg_len - 10 bytes (excludes the trailing sep and null counted in msg_len)
+// Douyu binary frame: [4B frame_len][frame_len bytes: [4B msg_len][4B magic \xb1\x02\x00\x00][payload][1B \x00][1B \x02]]
+// payload = msg_len - 10 bytes
 fn decode_packets(data: &[u8]) -> Vec<LiveDanmaku> {
-    let mut ret = Vec::new();
+    let mut danmakus = Vec::new();
     let mut pos = 0;
 
     loop {
@@ -169,12 +218,13 @@ fn decode_packets(data: &[u8]) -> Vec<LiveDanmaku> {
             break;
         }
 
-        let payload_start = pos + 8;
-        let payload_len = msg_len - 10;
-        let payload = &data[payload_start..payload_start + payload_len];
+        // skip inner len (4B) + magic (4B), read payload, skip trailing null+sep (2B)
+        let payload = &data[pos + 8..pos + msg_len - 2];
         pos += msg_len;
 
         let msg = String::from_utf8_lossy(payload);
+        // Douyu STT encoding: @= is key/value separator, / is field separator
+        // @A and @S are escaped @ and /
         let msg = msg.replace("@=", r#"":""#).replace('/', r#"",""#);
         let msg = msg.replace("@A", "@").replace("@S", "/");
         let msg = format!(r#"{{"{}"}}"#, &msg);
@@ -195,10 +245,10 @@ fn decode_packets(data: &[u8]) -> Vec<LiveDanmaku> {
             continue;
         }
         let col = j["col"].as_str().unwrap_or("-1");
-        ret.push(LiveDanmaku { text, color: lookup_color(col) });
+        danmakus.push(LiveDanmaku { text, color: lookup_color(col) });
     }
 
-    ret
+    danmakus
 }
 
 async fn connect_once(
@@ -218,7 +268,7 @@ async fn connect_once(
         .await?;
 
     let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
-    heartbeat.tick().await; // skip immediate first tick
+    heartbeat.tick().await;
 
     while stop.load(Ordering::Relaxed) {
         tokio::select! {
@@ -255,9 +305,7 @@ pub fn spawn_douyu_live_danmaku(
                     match connect_once(&rid, &sender, &stop).await {
                         Ok(true) => break,
                         Ok(false) => {}
-                        Err(e) => {
-                            tracing::warn!("douyu danmaku error for room {rid}: {e}");
-                        }
+                        Err(e) => tracing::warn!("douyu danmaku error for {rid}: {e}"),
                     }
                     if !stop.load(Ordering::Relaxed) {
                         break;
@@ -265,7 +313,7 @@ pub fn spawn_douyu_live_danmaku(
                     tokio::time::sleep(backoff).await;
                     backoff = (backoff * 2).min(Duration::from_secs(30));
                 }
-                tracing::info!("douyu danmaku stopped for room {rid}");
+                tracing::info!("douyu danmaku stopped for {rid}");
             });
     });
 }
