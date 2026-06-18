@@ -33,8 +33,7 @@ impl Default for ContextedMPV {
 }
 
 use crate::{
-    TrackSelection,
-    video::{MpvActor, MpvValue, MpvValueType},
+    TrackSelection, arm_mpv_proxy, video::{MpvActor, MpvValue, MpvValueType}
 };
 
 impl ContextedMPV {
@@ -109,6 +108,9 @@ impl ContextedMPV {
     }
 
     pub fn load_video(&self, url: &str) {
+        // mpv will read "WAYLAND_DISPLAY" everytime on loading file
+        arm_mpv_proxy();
+
         self.mpv.command("loadfile", &[url, "replace"]);
     }
 

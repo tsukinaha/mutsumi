@@ -19,7 +19,7 @@ mod imp {
     };
     use std::{
         cell::RefCell,
-        os::fd::{AsRawFd, IntoRawFd},
+        os::fd::AsRawFd,
         sync::OnceLock,
     };
 
@@ -141,9 +141,7 @@ mod imp {
                 .filter(|(fourcc, _)| !skip_packed_10bit || !PACKED_10BIT.contains(fourcc))
                 .collect();
 
-            let socket = create_mpv_proxy(format_pairs).expect("Failed to create Wayland proxy");
-
-            unsafe { std::env::set_var("WAYLAND_SOCKET", socket.into_raw_fd().to_string()) };
+            create_mpv_proxy(format_pairs);
 
             self.mpv.mpv.set_property("vo", "gpu-next".to_owned());
         }

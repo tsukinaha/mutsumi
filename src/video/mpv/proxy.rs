@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    os::fd::{AsRawFd, FromRawFd, OwnedFd},
+    os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd},
     rc::Rc,
     sync::{Mutex, OnceLock},
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -819,18 +819,48 @@ fn serve_client(socket: OwnedFd, upstream: String) {
     }
 }
 
-pub fn create_mpv_proxy(format_pairs: Vec<(u32, u64)>) -> Option<OwnedFd> {
-    let upstream = std::env::var("WAYLAND_DISPLAY").ok()?;
-    let (client, server) = std::os::unix::net::UnixStream::pair().ok()?;
+static PROXY_ARMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+pub fn create_mpv_proxy(format_pairs: Vec<(u32, u64)>) {
     ALLOWED_FORMAT_PAIRS
         .set(format_pairs.into_iter().collect())
-        .ok()?;
+        .ok();
+}
 
-    std::thread::Builder::new()
+pub fn arm_mpv_proxy() {
+    use std::sync::atomic::Ordering;
+
+    if PROXY_ARMED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
+    let upstream = match std::env::var("WAYLAND_DISPLAY") {
+        Ok(s) => s,
+        Err(_) => {
+            PROXY_ARMED.store(false, Ordering::SeqCst);
+            return;
+        }
+    };
+
+    let Ok((client, server)) = std::os::unix::net::UnixStream::pair() else {
+        PROXY_ARMED.store(false, Ordering::SeqCst);
+        return;
+    };
+
+    let result = std::thread::Builder::new()
         .name("wl-proxy-mpv".into())
-        .spawn(move || serve_client(server.into(), upstream))
-        .ok()?;
+        .spawn(move || {
+            serve_client(server.into(), upstream);
+            PROXY_ARMED.store(false, Ordering::SeqCst);
+        });
 
-    Some(client.into())
+    if result.is_err() {
+        PROXY_ARMED.store(false, Ordering::SeqCst);
+        return;
+    }
+
+    unsafe { std::env::set_var("WAYLAND_SOCKET", client.into_raw_fd().to_string()) };
 }
