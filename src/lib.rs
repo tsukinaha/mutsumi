@@ -7,7 +7,9 @@ pub use danmakw::*;
 pub use video::*;
 
 pub fn force_gl_renderer() {
-    unsafe { std::env::set_var("GSK_RENDERER", "gl"); }
+    unsafe {
+        std::env::set_var("GSK_RENDERER", "gl");
+    }
 }
 
 pub fn init() {

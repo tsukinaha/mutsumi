@@ -539,8 +539,7 @@ impl ZwpLinuxDmabufFeedbackV1Handler for FeedbackHandler {
 
         unsafe { libc::munmap(ptr, size as usize) };
 
-        let memfd =
-            unsafe { libc::memfd_create(c"dmabuf-fb".as_ptr() as *const libc::c_char, 0) };
+        let memfd = unsafe { libc::memfd_create(c"dmabuf-fb".as_ptr() as *const libc::c_char, 0) };
         if memfd < 0 {
             return;
         }

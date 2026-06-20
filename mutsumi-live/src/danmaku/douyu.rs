@@ -10,8 +10,7 @@ use futures::{SinkExt, StreamExt};
 
 use super::LiveDanmaku;
 
-const UA: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0";
+const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:146.0) Gecko/20100101 Firefox/146.0";
 
 const HEARTBEAT: &[u8] =
     b"\x14\x00\x00\x00\x14\x00\x00\x00\xb1\x02\x00\x00\x74\x79\x70\x65\x40\x3d\x6d\x72\x6b\x6c\x2f\x00";
@@ -247,7 +246,10 @@ fn decode_packets(data: &[u8]) -> Vec<LiveDanmaku> {
             continue;
         }
         let col = j["col"].as_str().unwrap_or("-1");
-        danmakus.push(LiveDanmaku { text, color: lookup_color(col) });
+        danmakus.push(LiveDanmaku {
+            text,
+            color: lookup_color(col),
+        });
     }
 
     danmakus
@@ -263,10 +265,14 @@ async fn connect_once(
     let (mut ws_write, mut ws_read) = ws.split();
 
     ws_write
-        .send(Message::Binary(build_packet(&format!("type@=loginreq/roomid@={rid}/"))))
+        .send(Message::Binary(build_packet(&format!(
+            "type@=loginreq/roomid@={rid}/"
+        ))))
         .await?;
     ws_write
-        .send(Message::Binary(build_packet(&format!("type@=joingroup/rid@={rid}/gid@=1/"))))
+        .send(Message::Binary(build_packet(&format!(
+            "type@=joingroup/rid@={rid}/gid@=1/"
+        ))))
         .await?;
 
     let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
@@ -291,11 +297,7 @@ async fn connect_once(
     Ok(true)
 }
 
-pub fn spawn_douyu_live_danmaku(
-    rid: String,
-    sender: Sender<LiveDanmaku>,
-    stop: Arc<AtomicBool>,
-) {
+pub fn spawn_douyu_live_danmaku(rid: String, sender: Sender<LiveDanmaku>, stop: Arc<AtomicBool>) {
     std::thread::spawn(move || {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()

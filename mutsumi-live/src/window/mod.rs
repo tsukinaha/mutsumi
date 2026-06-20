@@ -70,7 +70,9 @@ mod imp {
                     obj.player().open_playlist();
                 }
             ));
-            self.player.overlay_status().set_child(Some(&place_holder_status));
+            self.player
+                .overlay_status()
+                .set_child(Some(&place_holder_status));
 
             playlist.connect_play_requested(glib::clone!(
                 #[weak]

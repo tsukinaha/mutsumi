@@ -17,11 +17,7 @@ mod imp {
         FRAME_CHANNEL, create_mpv_proxy,
         video::{MutsumiMpvError, mpv::contexted::ContextedMPV},
     };
-    use std::{
-        cell::RefCell,
-        os::fd::AsRawFd,
-        sync::OnceLock,
-    };
+    use std::{cell::RefCell, os::fd::AsRawFd, sync::OnceLock};
 
     use super::*;
 

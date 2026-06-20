@@ -33,7 +33,8 @@ impl Default for ContextedMPV {
 }
 
 use crate::{
-    TrackSelection, arm_mpv_proxy, video::{MpvActor, MpvValue, MpvValueType}
+    TrackSelection, arm_mpv_proxy,
+    video::{MpvActor, MpvValue, MpvValueType},
 };
 
 impl ContextedMPV {

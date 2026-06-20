@@ -1,7 +1,7 @@
 mod danmaku;
 mod playlist;
-mod window;
 mod status;
+mod window;
 
 use gtk::prelude::*;
 

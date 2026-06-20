@@ -4,8 +4,6 @@ use gtk::{glib, prelude::*, subclass::prelude::*};
 mod imp {
     use std::cell::Cell;
 
-    
-
     use super::*;
 
     #[derive(Default, glib::Properties)]

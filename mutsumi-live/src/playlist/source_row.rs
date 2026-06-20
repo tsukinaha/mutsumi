@@ -54,8 +54,7 @@ mod imp {
                 }
                 LiveStatus::Offline => {
                     self.live_icon.set_css_classes(&["error"]);
-                    self.live_icon
-                        .set_tooltip_text(Some("Offline"));
+                    self.live_icon.set_tooltip_text(Some("Offline"));
                     self.live_stack.set_visible_child_name("status");
                 }
             }
