@@ -395,7 +395,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                         <style>
                                           <class name="flat"/>
                                           <class name="circular"/>
-                                          <class name="osd"/>
                                         </style>
                                       </object>
                                     </child>
@@ -408,7 +407,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                         <style>
                                           <class name="flat"/>
                                           <class name="circular"/>
-                                          <class name="osd"/>
                                         </style>
                                       </object>
                                     </child>
@@ -421,7 +419,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                         <style>
                                           <class name="flat"/>
                                           <class name="circular"/>
-                                          <class name="osd"/>
                                         </style>
                                       </object>
                                     </child>
@@ -434,7 +431,6 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
                                         <style>
                                           <class name="flat"/>
                                           <class name="circular"/>
-                                          <class name="osd"/>
                                         </style>
                                       </object>
                                     </child>
@@ -557,6 +553,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="AdwExpanderRow" id="expander_row">
             <property name="title" translatable="yes">Danmaku</property>
+            <property name="expanded" bind-source="danmaku_switch" bind-property="active" bind-flags="sync-create|bidirectional"/>
             <child type="prefix">
               <object class="GtkImage">
                 <property name="icon-name">card-bulleted-symbolic</property>
@@ -564,8 +561,9 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
             </child>
             <child type="suffix">
               <object class="GtkSwitch" id="danmaku_switch">
-                <property name="active" bind-source="expander_row" bind-property="expanded" bind-flags="sync-create|bidirectional"/>
+                <property name="active">true</property>
                 <property name="valign">3</property>
+                <signal name="state-set" handler="on_danmaku_switch_state_set" swapped="True"/>
               </object>
             </child>
             <child>

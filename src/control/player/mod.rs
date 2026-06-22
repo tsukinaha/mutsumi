@@ -92,6 +92,9 @@ mod imp {
         #[template_child]
         pub danmakw: TemplateChild<crate::Danmakw>,
 
+        #[template_child]
+        pub danmaku_switch: TemplateChild<gtk::Switch>,
+
         pub menu_actions: MenuActions,
         pub context_popover: RefCell<Option<PopoverMenu>>,
 
@@ -212,7 +215,7 @@ mod imp {
             self.paused.set(paused);
 
             // seeking
-            if !self.loading_box.is_visible() {
+            if !self.loading_box.is_visible() && self.danmaku_switch.is_active() {
                 self.danmakw.set_paused(paused);
             }
         }
@@ -387,7 +390,9 @@ impl MutsumiPlayer {
             return;
         }
 
-        self.imp().danmakw.set_paused(seeking);
+        if self.imp().danmaku_switch.is_active() {
+            self.imp().danmakw.set_paused(seeking);
+        }
 
         if !seeking {
             self.imp().danmakw.preroll_seek(time_millis);
@@ -567,6 +572,19 @@ impl MutsumiPlayer {
     }
 
     #[template_callback]
+    fn on_danmaku_switch_state_set(&self, state: bool, _switch: &gtk::Switch) -> bool {
+        let imp = self.imp();
+        if state {
+            if !self.paused() && !imp.loading_box.is_visible() {
+                imp.danmakw.start_rendering();
+            }
+        } else {
+            imp.danmakw.stop_rendering();
+        }
+        false
+    }
+
+    #[template_callback]
     fn on_progress_value_changed(&self, progress_scale: &VideoScale) {
         let label = &self.imp().progress_time_label;
         label.set_text(&format_duration(progress_scale.value() as i64));
@@ -739,7 +757,7 @@ impl MutsumiPlayer {
         let y = imp.y.get();
 
         if let Some(widget) = self.pick(x, y, gtk::PickFlags::DEFAULT)
-            && widget.downcast_ref::<crate::Danmakw>().is_none()
+            && widget.downcast_ref::<crate::Danmakw>().is_none() && widget.downcast_ref::<gtk::Picture>().is_none()
         {
             return false;
         }

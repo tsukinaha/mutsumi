@@ -532,6 +532,7 @@ Popover danmaku_popover {
             Switch danmaku_switch {
                 active: true;
                 valign: center;
+                state-set => $on_danmaku_switch_state_set() swapped;
             }
 
             Adw.SpinRow {
