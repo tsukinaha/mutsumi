@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use super::*;
 use flume::{Receiver, Sender};
 use gtk::gdk;
@@ -11,7 +14,7 @@ const SEEK_PREROLL_STEP_MS: f64 = 50.0;
 
 struct TextureRenderParams {
     text: String,
-    font_family: String,
+    font_family: Arc<str>,
     font_weight: pango::Weight,
     font_px_device: f64,
     dpi: f64,
@@ -21,7 +24,6 @@ struct TextureRenderParams {
 }
 
 struct PendingScrollRow {
-    id: u64,
     row: usize,
     x: f32,
     velocity_x: f32,
@@ -114,8 +116,98 @@ fn render_texture_raw(params: TextureRenderParams) -> (Vec<u8>, i32, i32, usize)
     surface.flush();
 
     let stride = surface.stride() as usize;
-    let data = surface.data().expect("Failed to get cairo surface data").to_vec();
+    let data = surface
+        .data()
+        .expect("Failed to get cairo surface data")
+        .to_vec();
     (data, w, h, stride)
+}
+
+struct FontMetrics {
+    font_size: f64,
+    scale_factor: f64,
+    spacing_factor: f32,
+    dpi: f64,
+    font_px_device: f64,
+    line_height: f32,
+    spacing: f32,
+}
+
+impl FontMetrics {
+    fn compute(font_size: f64, dpi: f64, scale_factor: f64, spacing_factor: f32) -> Self {
+        let font_px_logical = font_size * (dpi / 72.0);
+        Self {
+            font_size,
+            scale_factor,
+            spacing_factor,
+            dpi,
+            font_px_device: font_px_logical * scale_factor,
+            line_height: font_px_logical as f32 * spacing_factor,
+            spacing: font_px_logical as f32,
+        }
+    }
+
+    fn is_stale(&self, font_size: f64, dpi: f64, scale_factor: f64, spacing_factor: f32) -> bool {
+        self.font_size != font_size
+            || self.dpi != dpi
+            || self.scale_factor != scale_factor
+            || self.spacing_factor != spacing_factor
+    }
+}
+
+struct CenterRowTracker {
+    occupied: Vec<bool>,
+    overlay_hint: usize,
+}
+
+impl CenterRowTracker {
+    fn new(max_rows: usize) -> Self {
+        Self {
+            occupied: vec![false; max_rows],
+            overlay_hint: 0,
+        }
+    }
+
+    fn max_rows(&self) -> usize {
+        self.occupied.len()
+    }
+
+    fn free_rows(&self) -> impl Iterator<Item = usize> + '_ {
+        self.occupied
+            .iter()
+            .enumerate()
+            .filter(|&(_, occ)| !occ)
+            .map(|(i, _)| i)
+    }
+
+    fn find_row(&mut self, allow_overlay: bool) -> Option<usize> {
+        if allow_overlay {
+            if self.occupied.is_empty() {
+                return None;
+            }
+            let row = self.overlay_hint % self.occupied.len();
+            self.overlay_hint = self.overlay_hint.wrapping_add(1);
+            Some(row)
+        } else {
+            let row = self.free_rows().next()?;
+            self.occupied[row] = true;
+            Some(row)
+        }
+    }
+
+    fn release(&mut self, row: usize) {
+        if let Some(occ) = self.occupied.get_mut(row) {
+            *occ = false;
+        }
+    }
+
+    fn resize(&mut self, size: usize) {
+        self.occupied.resize(size, false);
+    }
+
+    fn clear(&mut self) {
+        self.occupied.fill(false);
+    }
 }
 
 pub struct DanmakwRenderer {
@@ -128,22 +220,17 @@ pub struct DanmakwRenderer {
     pub scroll_max_rows: usize,
 
     pub top_center_danmaku: Vec<CenterDanmaku>,
-    pub top_center_max_rows: usize,
-    pub top_center_row_occupied: Vec<bool>,
-
     pub bottom_center_danmaku: Vec<CenterDanmaku>,
-    pub bottom_center_max_rows: usize,
-    pub bottom_center_row_occupied: Vec<bool>,
 
     pub line_height: f32,
     pub top_padding: f32,
     /// Font size in logical pt (from UI).
     pub font_size: f64,
-    pub font_name: String,
+    pub font_name: Arc<str>,
     pub font_weight: pango::Weight,
     /// Spacing between danmaku rows as a multiple of font height (logical px).
     pub spacing_factor: f32,
-    /// Cached spacing in logical px, recomputed in add_danmaku.
+    /// Cached spacing in logical px, kept in sync with `cached_metrics`.
     spacing: f32,
     pub outline_px: f64,
     pub shadow_offset: f64,
@@ -154,12 +241,13 @@ pub struct DanmakwRenderer {
     /// When true, skip row collision detection and let danmaku overlap freely.
     pub allow_overlay: bool,
     overlay_scroll_hint: usize,
-    overlay_top_hint: usize,
-    overlay_bottom_hint: usize,
 
+    top_center_tracker: CenterRowTracker,
+    bottom_center_tracker: CenterRowTracker,
+    cached_metrics: Option<FontMetrics>,
     texture_tx: Sender<TextureReady>,
     texture_rx: Receiver<TextureReady>,
-    pending_scroll: Vec<PendingScrollRow>,
+    pending_scroll: HashMap<u64, PendingScrollRow>,
     next_pending_id: u64,
 }
 
@@ -172,8 +260,6 @@ impl Default for DanmakwRenderer {
 impl DanmakwRenderer {
     pub fn new(scale_factor: f64) -> Self {
         let scroll_max_rows = 25;
-        let top_center_max_rows = 10;
-        let bottom_center_max_rows = 10;
         let font_size = 24.0_f64;
         let font_px_logical = font_size * (96.0 / 72.0);
         let spacing_factor = 1.5_f32;
@@ -181,13 +267,10 @@ impl DanmakwRenderer {
         let spacing = font_px_logical as f32;
         let top_padding = 10.0;
 
-        let top_center_row_occupied = vec![false; top_center_max_rows];
-        let bottom_center_row_occupied = vec![false; bottom_center_max_rows];
-
         let (texture_tx, texture_rx) = flume::unbounded();
 
         Self {
-            font_name: String::new(),
+            font_name: Arc::from(""),
             font_size,
             font_weight: pango::Weight::Normal,
             spacing_factor,
@@ -199,25 +282,22 @@ impl DanmakwRenderer {
             top_center_danmaku: Vec::new(),
             bottom_center_danmaku: Vec::new(),
             scroll_max_rows,
-            top_center_max_rows,
-            bottom_center_max_rows,
             line_height,
             top_padding,
             scale_factor,
             speed_factor: 1.0,
-            top_center_row_occupied,
-            bottom_center_row_occupied,
+            top_center_tracker: CenterRowTracker::new(10),
+            bottom_center_tracker: CenterRowTracker::new(10),
             paused: false,
             last_time: 0.0,
             screen_height: 0.0,
             intensity_index: 1,
             allow_overlay: false,
             overlay_scroll_hint: 0,
-            overlay_top_hint: 0,
-            overlay_bottom_hint: 0,
+            cached_metrics: None,
             texture_tx,
             texture_rx,
-            pending_scroll: Vec::new(),
+            pending_scroll: HashMap::new(),
             next_pending_id: 0,
         }
     }
@@ -227,8 +307,7 @@ impl DanmakwRenderer {
             return;
         }
 
-        let total_rows =
-            ((self.screen_height - self.top_padding) / self.line_height) as usize;
+        let total_rows = ((self.screen_height - self.top_padding) / self.line_height) as usize;
         let total_rows = total_rows.max(1);
 
         let scroll = if self.allow_overlay {
@@ -245,10 +324,8 @@ impl DanmakwRenderer {
         let center = (scroll / 5).max(1);
 
         self.scroll_max_rows = scroll;
-        self.top_center_max_rows = center;
-        self.bottom_center_max_rows = center;
-        self.top_center_row_occupied.resize(center, false);
-        self.bottom_center_row_occupied.resize(center, false);
+        self.top_center_tracker.resize(center);
+        self.bottom_center_tracker.resize(center);
     }
 
     fn spawn_texture(
@@ -277,38 +354,31 @@ impl DanmakwRenderer {
             self.overlay_scroll_hint = self.overlay_scroll_hint.wrapping_add(1);
             row
         } else {
-            let v = velocity_x.abs();
-            let reach_edge_time = width / v;
-            let mut found_row: Option<usize> = None;
+            let reach_edge_time = width / velocity_x.abs();
+            let spacing = self.spacing;
 
-            for target_row in 0..self.scroll_max_rows {
-                let last_in_row = self
+            let Some(row) = (0..self.scroll_max_rows).find(|&r| {
+                let last = self
                     .scroll_danmaku
                     .iter()
-                    .filter(|d| d.row == target_row)
+                    .filter(|d| d.row == r)
                     .map(|d| (d.x, d.width, d.velocity_x))
                     .chain(
                         self.pending_scroll
-                            .iter()
-                            .filter(|p| p.row == target_row)
+                            .values()
+                            .filter(|p| p.row == r)
                             .map(|p| (p.x, p.width, p.velocity_x)),
                     )
                     .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
-                let Some((last_x, last_width, last_vel)) = last_in_row else {
-                    found_row = Some(target_row);
-                    break;
-                };
-
-                let leave_time = (last_x + last_width + self.spacing) / last_vel.abs();
-
-                if leave_time < reach_edge_time && width > last_width + self.spacing + last_x {
-                    found_row = Some(target_row);
-                    break;
+                match last {
+                    None => true,
+                    Some((last_x, last_width, last_vel)) => {
+                        let leave_time = (last_x + last_width + spacing) / last_vel.abs();
+                        leave_time < reach_edge_time && width > last_width + spacing + last_x
+                    }
                 }
-            }
-
-            let Some(row) = found_row else {
+            }) else {
                 return;
             };
             row
@@ -319,13 +389,15 @@ impl DanmakwRenderer {
 
         let origin_offset = params.outline_px as f32 / self.scale_factor as f32;
 
-        self.pending_scroll.push(PendingScrollRow {
+        self.pending_scroll.insert(
             id,
-            row: target_row,
-            x: width,
-            velocity_x,
-            width: text_width,
-        });
+            PendingScrollRow {
+                row: target_row,
+                x: width,
+                velocity_x,
+                width: text_width,
+            },
+        );
 
         self.spawn_texture(params, move |bytes, w, h, stride| TextureReady::Scroll {
             id,
@@ -347,20 +419,8 @@ impl DanmakwRenderer {
         text_width: f32,
         danmaku: Danmaku,
     ) {
-        let target_row = if self.allow_overlay {
-            let row = self.overlay_top_hint % self.top_center_max_rows;
-            self.overlay_top_hint = self.overlay_top_hint.wrapping_add(1);
-            row
-        } else {
-            let Some(row) = self
-                .top_center_row_occupied
-                .iter()
-                .position(|&occupied| !occupied)
-            else {
-                return;
-            };
-            self.top_center_row_occupied[row] = true;
-            row
+        let Some(target_row) = self.top_center_tracker.find_row(self.allow_overlay) else {
+            return;
         };
 
         let origin_offset = params.outline_px as f32 / self.scale_factor as f32;
@@ -383,33 +443,23 @@ impl DanmakwRenderer {
         text_width: f32,
         danmaku: Danmaku,
     ) {
-        let target_row = if self.allow_overlay {
-            let row = self.overlay_bottom_hint % self.bottom_center_max_rows;
-            self.overlay_bottom_hint = self.overlay_bottom_hint.wrapping_add(1);
-            row
-        } else {
-            let Some(row) = self
-                .bottom_center_row_occupied
-                .iter()
-                .position(|&occupied| !occupied)
-            else {
-                return;
-            };
-            self.bottom_center_row_occupied[row] = true;
-            row
+        let Some(target_row) = self.bottom_center_tracker.find_row(self.allow_overlay) else {
+            return;
         };
 
         let origin_offset = params.outline_px as f32 / self.scale_factor as f32;
 
-        self.spawn_texture(params, move |bytes, w, h, stride| TextureReady::BottomCenter {
-            bytes,
-            w,
-            h,
-            stride,
-            danmaku,
-            origin_offset,
-            width: text_width,
-            row: target_row,
+        self.spawn_texture(params, move |bytes, w, h, stride| {
+            TextureReady::BottomCenter {
+                bytes,
+                w,
+                h,
+                stride,
+                danmaku,
+                origin_offset,
+                width: text_width,
+                row: target_row,
+            }
         });
     }
 
@@ -425,8 +475,8 @@ impl DanmakwRenderer {
         self.scroll_danmaku.clear();
         self.top_center_danmaku.clear();
         self.bottom_center_danmaku.clear();
-        self.top_center_row_occupied.fill(false);
-        self.bottom_center_row_occupied.fill(false);
+        self.top_center_tracker.clear();
+        self.bottom_center_tracker.clear();
         self.pending_scroll.clear();
         while self.texture_rx.try_recv().is_ok() {}
 
@@ -459,40 +509,39 @@ impl DanmakwRenderer {
         }
         self.danmaku_queue = danmaku_queue;
 
+        let speed = self.speed_factor as f32;
         for text in self.scroll_danmaku.iter_mut() {
-            text.x += text.velocity_x * delta_time * self.speed_factor as f32;
+            text.x += text.velocity_x * delta_time * speed;
         }
-        for pending in self.pending_scroll.iter_mut() {
-            pending.x += pending.velocity_x * delta_time * self.speed_factor as f32;
+        for pending in self.pending_scroll.values_mut() {
+            pending.x += pending.velocity_x * delta_time * speed;
         }
 
         self.scroll_danmaku.retain(|text| text.x + text.width > 0.0);
-        self.pending_scroll.retain(|p| p.x + p.width > 0.0);
+        self.pending_scroll.retain(|_, p| p.x + p.width > 0.0);
 
-        for text in self.top_center_danmaku.iter_mut() {
+        let (top_danmaku, top_tracker) =
+            (&mut self.top_center_danmaku, &mut self.top_center_tracker);
+        for text in top_danmaku.iter_mut() {
             text.remaining_time -= delta_time;
         }
-
-        self.top_center_danmaku.retain(|text| {
+        top_danmaku.retain(|text| {
             if text.remaining_time <= 0.0 {
-                if let Some(occupied) = self.top_center_row_occupied.get_mut(text.row) {
-                    *occupied = false;
-                }
+                top_tracker.release(text.row);
                 false
             } else {
                 true
             }
         });
 
-        for text in self.bottom_center_danmaku.iter_mut() {
+        let (bottom_danmaku, bottom_tracker) =
+            (&mut self.bottom_center_danmaku, &mut self.bottom_center_tracker);
+        for text in bottom_danmaku.iter_mut() {
             text.remaining_time -= delta_time;
         }
-
-        self.bottom_center_danmaku.retain(|text| {
+        bottom_danmaku.retain(|text| {
             if text.remaining_time <= 0.0 {
-                if let Some(occupied) = self.bottom_center_row_occupied.get_mut(text.row) {
-                    *occupied = false;
-                }
+                bottom_tracker.release(text.row);
                 false
             } else {
                 true
@@ -515,11 +564,10 @@ impl DanmakwRenderer {
                     width,
                     row,
                 } => {
-                    let Some(idx) = self.pending_scroll.iter().position(|p| p.id == id) else {
+                    let Some(pending) = self.pending_scroll.remove(&id) else {
                         continue;
                     };
-                    let current_x = self.pending_scroll[idx].x;
-                    self.pending_scroll.swap_remove(idx);
+                    let current_x = pending.x;
 
                     if current_x + width <= 0.0 {
                         continue;
@@ -601,12 +649,22 @@ impl DanmakwRenderer {
     pub fn add_danmaku(&mut self, context: &Context, screen_width: f32, danmaku: Danmaku) {
         let raw_dpi = pangocairo::functions::context_get_resolution(context);
         let dpi = if raw_dpi > 0.0 { raw_dpi } else { 96.0 };
-        let font_px_device = self.font_size * (dpi / 72.0) * self.scale_factor;
-        let font_px_logical = self.font_size * (dpi / 72.0);
-        self.line_height = font_px_logical as f32 * self.spacing_factor;
-        self.spacing = font_px_logical as f32;
 
-        self.recompute_max_rows();
+        let font_px_device = if self
+            .cached_metrics
+            .as_ref()
+            .map_or(true, |m| m.is_stale(self.font_size, dpi, self.scale_factor, self.spacing_factor))
+        {
+            let m = FontMetrics::compute(self.font_size, dpi, self.scale_factor, self.spacing_factor);
+            self.line_height = m.line_height;
+            self.spacing = m.spacing;
+            let fpd = m.font_px_device;
+            self.cached_metrics = Some(m);
+            self.recompute_max_rows();
+            fpd
+        } else {
+            self.cached_metrics.as_ref().unwrap().font_px_device
+        };
 
         let layout = Layout::new(context);
         let mut font_desc = pango::FontDescription::default();
@@ -621,7 +679,7 @@ impl DanmakwRenderer {
 
         let params = TextureRenderParams {
             text: danmaku.content.clone(),
-            font_family: self.font_name.clone(),
+            font_family: Arc::clone(&self.font_name),
             font_weight: self.font_weight,
             font_px_device,
             dpi,
@@ -647,8 +705,8 @@ impl DanmakwRenderer {
         self.scroll_danmaku.clear();
         self.top_center_danmaku.clear();
         self.bottom_center_danmaku.clear();
-        self.top_center_row_occupied.fill(false);
-        self.bottom_center_row_occupied.fill(false);
+        self.top_center_tracker.clear();
+        self.bottom_center_tracker.clear();
         self.pending_scroll.clear();
         while self.texture_rx.try_recv().is_ok() {}
     }
@@ -691,5 +749,13 @@ impl DanmakwRenderer {
         self.intensity_index = index;
         self.allow_overlay = index == 3;
         self.recompute_max_rows();
+    }
+
+    pub fn top_center_max_rows(&self) -> usize {
+        self.top_center_tracker.max_rows()
+    }
+
+    pub fn bottom_center_max_rows(&self) -> usize {
+        self.bottom_center_tracker.max_rows()
     }
 }

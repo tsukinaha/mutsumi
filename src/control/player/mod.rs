@@ -767,7 +767,8 @@ impl MutsumiPlayer {
         let y = imp.y.get();
 
         if let Some(widget) = self.pick(x, y, gtk::PickFlags::DEFAULT)
-            && widget.downcast_ref::<crate::Danmakw>().is_none() && widget.downcast_ref::<gtk::Picture>().is_none()
+            && widget.downcast_ref::<crate::Danmakw>().is_none()
+            && widget.downcast_ref::<gtk::Picture>().is_none()
         {
             return false;
         }
