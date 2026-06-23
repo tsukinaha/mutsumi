@@ -37,6 +37,9 @@ mod imp {
         #[template_child]
         pub toast_overlay: TemplateChild<adw::ToastOverlay>,
 
+        #[property(get, set)]
+        pub show_sidebar: Cell<bool>,
+
         #[template_child]
         pub split_view: TemplateChild<adw::OverlaySplitView>,
         #[template_child]
@@ -104,6 +107,9 @@ mod imp {
         pub last_motion_time: Cell<i64>,
 
         pub shortcuts_dialog: OnceCell<adw::ShortcutsDialog>,
+
+        #[property(get, set)]
+        pub popover_count: Cell<i32>,
     }
 
     #[glib::object_subclass]
@@ -753,6 +759,10 @@ impl MutsumiPlayer {
     fn can_fade_overlay(&self) -> bool {
         let imp = self.imp();
 
+        if imp.popover_count.get() > 0 {
+            return false;
+        }
+
         let x = imp.x.get();
         let y = imp.y.get();
 
@@ -819,6 +829,16 @@ impl MutsumiPlayer {
 
     pub fn danmakw(&self) -> crate::Danmakw {
         self.imp().danmakw.get()
+    }
+
+    #[template_callback]
+    fn on_popover_opened(&self) {
+        self.set_popover_count(self.popover_count() + 1);
+    }
+
+    #[template_callback]
+    fn on_popover_closed(&self) {
+        self.set_popover_count((self.popover_count() - 1).max(0));
     }
 }
 

@@ -10,6 +10,7 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="video-title">Mutsumi Danmaku Video Player</property>
     <property name="video-subtitle">uses wl-proxy for rendering</property>
     <property name="focusable">true</property>
+    <property name="show-sidebar" bind-source="split_view" bind-property="show-sidebar" bind-flags="sync-create|bidirectional"/>
     <child>
       <object class="GtkEventControllerMotion">
         <signal name="motion" handler="on_motion" swapped="True"/>
@@ -546,6 +547,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="width-request">320</property>
     <property name="position">3</property>
     <property name="has-arrow">true</property>
+    <signal name="map" handler="on_popover_opened" swapped="True"/>
+    <signal name="unmap" handler="on_popover_closed" swapped="True"/>
     <child>
       <object class="GtkListBox">
         <property name="selection-mode">0</property>
@@ -712,6 +715,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="width-request">320</property>
     <property name="position">2</property>
     <property name="has-arrow">true</property>
+    <signal name="map" handler="on_popover_opened" swapped="True"/>
+    <signal name="unmap" handler="on_popover_closed" swapped="True"/>
     <child>
       <object class="GtkScrolledWindow">
         <child>
@@ -731,6 +736,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
     <property name="width-request">320</property>
     <property name="position">2</property>
     <property name="has-arrow">true</property>
+    <signal name="map" handler="on_popover_opened" swapped="True"/>
+    <signal name="unmap" handler="on_popover_closed" swapped="True"/>
     <child>
       <object class="GtkScrolledWindow">
         <child>
@@ -748,6 +755,8 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
   <object class="GtkPopover" id="volume_adj_popover">
     <property name="position">2</property>
     <property name="has-arrow">true</property>
+    <signal name="map" handler="on_popover_opened" swapped="True"/>
+    <signal name="unmap" handler="on_popover_closed" swapped="True"/>
     <child>
       <object class="GtkScale" id="volume_scale">
         <property name="adjustment">volume_adj</property>

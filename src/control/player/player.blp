@@ -5,6 +5,7 @@ template $MutsumiPlayer: Adw.Bin {
     video-title: "Mutsumi Danmaku Video Player";
     video-subtitle: "uses wl-proxy for rendering";
     focusable: true;
+    show-sidebar: bind split_view.show-sidebar bidirectional;
 
     EventControllerMotion {
         motion => $on_motion() swapped;
@@ -514,6 +515,8 @@ Popover danmaku_popover {
     width-request: 320;
     position: bottom;
     has-arrow: true;
+    map => $on_popover_opened() swapped;
+    unmap => $on_popover_closed() swapped;
 
     ListBox {
         selection-mode: none;
@@ -666,6 +669,8 @@ Popover subtitle_tracks_popover {
     width-request: 320;
     position: top;
     has-arrow: true;
+    map => $on_popover_opened() swapped;
+    unmap => $on_popover_closed() swapped;
 
     ScrolledWindow {
         ListBox sub_listbox {
@@ -684,6 +689,8 @@ Popover audio_tracks_popover {
     width-request: 320;
     position: top;
     has-arrow: true;
+    map => $on_popover_opened() swapped;
+    unmap => $on_popover_closed() swapped;
 
     ScrolledWindow {
         ListBox audio_listbox {
@@ -700,6 +707,8 @@ Popover audio_tracks_popover {
 Popover volume_adj_popover {
     position: top;
     has-arrow: true;
+    map => $on_popover_opened() swapped;
+    unmap => $on_popover_closed() swapped;
 
     Scale volume_scale {
         adjustment: volume_adj;
