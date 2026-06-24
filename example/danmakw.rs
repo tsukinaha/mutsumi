@@ -3,6 +3,8 @@ use mutsumi::Danmakw;
 
 mod parse;
 
+const XML: &str = include_str!("test.xml");
+
 fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
@@ -28,12 +30,7 @@ fn main() {
 
         window.present();
 
-        let xml = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("example/test.xml"),
-        )
-        .expect("failed to read test.xml");
-
-        match parse::parse_bilibili_xml(&xml) {
+        match parse::parse_bilibili_xml(XML) {
             Ok(danmaku) => {
                 danmakw.load_danmaku(danmaku);
                 danmakw.start_rendering();
